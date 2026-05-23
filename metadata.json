@@ -1,0 +1,6 @@
+{
+  "name": "Aegis CRM",
+  "description": "Bespoke Private CRM designed exclusively for elite High-Ticket Closers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
