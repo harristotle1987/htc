@@ -45,7 +45,11 @@ function mapPostgresLead(row: any) {
     budgetAnchor: row.budget_anchor || '',
     nextFollowUp: row.next_follow_up || '',
     notes: row.notes || '',
-    tasks: row.tasks ? JSON.parse(row.tasks) : []
+    tasks: row.tasks ? JSON.parse(row.tasks) : [],
+    closerId: row.closer_id || '',
+    closerPercentage: row.closer_percentage ? Number(row.closer_percentage) : 0,
+    amountPaid: row.amount_paid ? Number(row.amount_paid) : 0,
+    paymentConfirmed: !!row.payment_confirmed
   };
 }
 
@@ -345,14 +349,15 @@ app.delete('/api/metrics/:id', async (req, res) => {
 // POST /api/leads - Create a new lead
 app.post('/api/leads', async (req, res) => {
   const id = `L${Date.now()}`;
-  const { name, company, dealSize, stage, callType, bleedingNeck, emotionalAnchor, coi, futureIdentity, budgetAnchor, nextFollowUp, notes, tasks } = req.body;
+  const { name, company, dealSize, stage, callType, bleedingNeck, emotionalAnchor, coi, futureIdentity, budgetAnchor, nextFollowUp, notes, tasks, closerId, closerPercentage, amountPaid, paymentConfirmed } = req.body;
 
   // 1. Write to Neon Postgres
   try {
     await sql`
       INSERT INTO leads (
         id, name, company, deal_size, stage, call_type, bleeding_neck, 
-        emotional_anchor, coi, future_identity, budget_anchor, next_follow_up, notes, tasks
+        emotional_anchor, coi, future_identity, budget_anchor, next_follow_up, notes, tasks,
+        closer_id, closer_percentage, amount_paid, payment_confirmed
       ) VALUES (
         ${id}, 
         ${name || ''}, 
@@ -367,7 +372,11 @@ app.post('/api/leads', async (req, res) => {
         ${budgetAnchor || ''}, 
         ${nextFollowUp || ''}, 
         ${notes || ''}, 
-        ${JSON.stringify(tasks || [])}
+        ${JSON.stringify(tasks || [])},
+        ${closerId || ''},
+        ${closerPercentage || 0},
+        ${amountPaid || 0},
+        ${paymentConfirmed || false}
       )
     `;
     console.log(`Lead ${id} saved to Neon Postgres.`);
@@ -563,7 +572,11 @@ app.patch('/api/leads/:id', async (req, res) => {
         budgetAnchor: updates.budgetAnchor !== undefined ? updates.budgetAnchor : current.budget_anchor,
         nextFollowUp: updates.nextFollowUp !== undefined ? updates.nextFollowUp : current.next_follow_up,
         notes: updates.notes !== undefined ? updates.notes : current.notes,
-        tasks: updates.tasks !== undefined ? JSON.stringify(updates.tasks) : current.tasks
+        tasks: updates.tasks !== undefined ? JSON.stringify(updates.tasks) : current.tasks,
+        closerId: updates.closerId !== undefined ? updates.closerId : current.closer_id,
+        closerPercentage: updates.closerPercentage !== undefined ? updates.closerPercentage : current.closer_percentage,
+        amountPaid: updates.amountPaid !== undefined ? updates.amountPaid : current.amount_paid,
+        paymentConfirmed: updates.paymentConfirmed !== undefined ? updates.paymentConfirmed : current.payment_confirmed
       };
 
       await sql`
@@ -580,7 +593,11 @@ app.patch('/api/leads/:id', async (req, res) => {
           budget_anchor = ${merged.budgetAnchor}, 
           next_follow_up = ${merged.nextFollowUp}, 
           notes = ${merged.notes}, 
-          tasks = ${merged.tasks}
+          tasks = ${merged.tasks},
+          closer_id = ${merged.closerId},
+          closer_percentage = ${merged.closerPercentage},
+          amount_paid = ${merged.amountPaid},
+          payment_confirmed = ${merged.paymentConfirmed}
         WHERE id = ${id}
       `;
       console.log(`Lead ${id} updated in Neon Postgres.`);

@@ -26,11 +26,19 @@ export async function initDb() {
         budget_anchor VARCHAR(255),
         next_follow_up VARCHAR(100),
         notes TEXT,
-        tasks TEXT
+        tasks TEXT,
+        closer_id VARCHAR(50),
+        closer_percentage NUMERIC,
+        amount_paid NUMERIC,
+        payment_confirmed BOOLEAN DEFAULT FALSE
       )
     `;
     await sql`ALTER TABLE leads ALTER COLUMN stage TYPE VARCHAR(100) USING stage::varchar`;
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS tasks TEXT`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS closer_id VARCHAR(50)`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS closer_percentage NUMERIC`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS amount_paid NUMERIC`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS payment_confirmed BOOLEAN DEFAULT FALSE`;
 
     // Seed mock data
     const existingLeads = await sql`SELECT count(*) FROM leads`;

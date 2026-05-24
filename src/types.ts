@@ -64,6 +64,10 @@ export interface Lead {
   notes?: string;
   email?: string;
   phone?: string;
+  closerId?: string;
+  closerPercentage?: number;
+  amountPaid?: number;
+  paymentConfirmed?: boolean;
   stakeholders?: Stakeholder[];
   tasks?: Task[];
 }

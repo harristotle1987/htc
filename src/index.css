@@ -83,6 +83,9 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(var(--muted), 0.4);
   }
+  .custom-scrollbar {
+    scrollbar-gutter: stable;
+  }
 
   .horizontal-scrollbar::-webkit-scrollbar {
     height: 10px;

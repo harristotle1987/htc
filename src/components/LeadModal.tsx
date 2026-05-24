@@ -28,7 +28,13 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
     budgetAnchor: lead.budgetAnchor || '',
     nextFollowUp: lead.nextFollowUp || '',
     notes: lead.notes || '',
-    tasks: lead.tasks || []
+    tasks: lead.tasks || [],
+    email: lead.email || '',
+    phone: lead.phone || '',
+    closerId: lead.closerId || '',
+    closerPercentage: lead.closerPercentage || 0,
+    amountPaid: lead.amountPaid || 0,
+    paymentConfirmed: lead.paymentConfirmed || false
   });
 
   const [calStatus, setCalStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -152,10 +158,11 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
               >
                 <option value="Discovery Scheduled">Discovery Scheduled</option>
                 <option value="Post-Discovery">Post-Discovery</option>
-                <option value="Pitch Scheduled">Pitch Scheduled</option>
-                <option value="Contract Sent">Contract Sent</option>
-                <option value="Closed Won">Closed Won</option>
-                <option value="Closed Lost">Closed Lost</option>
+                <option value="Pitch Complete">Pitch Complete</option>
+                <option value="Active Negotiation">Active Negotiation</option>
+                <option value="Pending Payment">Pending Payment</option>
+                <option value="Closed-Won">Closed-Won</option>
+                <option value="Nurture / Long-Term">Nurture / Long-Term</option>
               </select>
             </div>
           </div>
@@ -204,6 +211,42 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
               </div>
               
               <div className="space-y-6">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2.5 group">
+                        <label className="text-[10px] font-bold text-muted tracking-widest uppercase ml-1">Closer Percentage</label>
+                        <input 
+                          type="number"
+                          name="closerPercentage"
+                          value={formData.closerPercentage}
+                          onChange={handleChange}
+                          className="w-full bg-background/50 border border-border rounded-xl p-3.5 text-sm focus:outline-none focus:border-primary transition-colors shadow-inner"
+                        />
+                    </div>
+                    <div className="space-y-2.5 group">
+                        <label className="text-[10px] font-bold text-muted tracking-widest uppercase ml-1">Payment Amount</label>
+                        <input 
+                          type="number"
+                          name="amountPaid"
+                          value={formData.amountPaid}
+                          onChange={handleChange}
+                          className="w-full bg-background/50 border border-border rounded-xl p-3.5 text-sm focus:outline-none focus:border-primary transition-colors shadow-inner"
+                        />
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      name="paymentConfirmed"
+                      checked={formData.paymentConfirmed}
+                      onChange={(e) => setFormData(prev => ({ ...prev, paymentConfirmed: e.target.checked }))}
+                      className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary"
+                    />
+                    <label className="text-[10px] font-bold text-muted tracking-widest uppercase ml-1">Confirm Payment</label>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2.5 group">
                     <label className="text-[10px] font-bold text-muted tracking-widest uppercase ml-1">Script Pathway</label>

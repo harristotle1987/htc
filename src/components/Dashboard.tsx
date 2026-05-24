@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MetricData, Lead } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import AnalyticsChart from './AnalyticsChart';
+import RevenueGauge from './RevenueGauge';
 
 interface DashboardProps {
   metrics: MetricData | null;
@@ -43,8 +44,8 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
       computedAverageDealSize = '$' + avg.toLocaleString();
     }
     
-    const wonLeads = leads.filter(l => l.stage === 'Closed-Won');
-    const cash = wonLeads.reduce((acc, curr) => acc + (curr.dealSize || 0), 0);
+    const wonLeads = leads.filter(l => l.stage === 'Closed-Won' && l.paymentConfirmed);
+    const cash = wonLeads.reduce((acc, curr) => acc + ((curr.amountPaid || 0) * ((curr.closerPercentage || 0) / 100)), 0);
     computedCashCollected = '$' + cash.toLocaleString();
   }
 
@@ -128,7 +129,14 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
           })}
         </AnimatePresence>
       </div>
-      <AnalyticsChart />
+      <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <AnalyticsChart />
+        </div>
+        <div className="lg:col-span-1">
+          <RevenueGauge leads={leads} targetRevenue={50000} />
+        </div>
+      </div>
     </div>
   );
 }
