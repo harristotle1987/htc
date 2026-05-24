@@ -20,17 +20,12 @@ export default function Disable2FAModal({ onClose, onSuccess }: Disable2FAProps)
     setError('');
 
     try {
-      const res = await fetch('/api/2fa/disable', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        onSuccess();
+      // Simulate validation (accept any token of 6 digits for the static demo)
+      if (token.length >= 6) {
+         localStorage.removeItem('is2FAEnabled');
+         onSuccess();
       } else {
-        setError(data.error || 'Invalid 2FA token');
+         setError('Invalid 2FA token');
       }
     } catch (err) {
       setError('An error occurred during verification');

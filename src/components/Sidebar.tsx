@@ -21,18 +21,18 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
   };
 
   return (
-    <aside className="w-16 md:w-64 bg-card/80 backdrop-blur-3xl border-r border-border h-full flex flex-col transition-all duration-300 z-10 shrink-0 relative shadow-[1px_0_24px_rgba(0,0,0,0.1)]">
+    <aside className="w-full md:w-64 bg-card/80 backdrop-blur-3xl border-t md:border-t-0 md:border-r border-border h-[4.5rem] md:h-full flex flex-row md:flex-col transition-all duration-300 z-40 shrink-0 relative shadow-[0_-4px_24px_rgba(0,0,0,0.1)] md:shadow-[1px_0_24px_rgba(0,0,0,0.1)]">
       {/* Decorative top glow */}
-      <div className="absolute top-0 left-0 w-full h-32 bg-primary/5 blur-[50px] pointer-events-none rounded-full -translate-y-1/2"></div>
+      <div className="absolute top-0 left-0 w-full md:w-full h-1 md:h-32 bg-primary/20 md:bg-primary/5 blur-[10px] md:blur-[50px] pointer-events-none md:rounded-full md:-translate-y-1/2"></div>
       
-      <div className="h-16 flex items-center justify-center md:justify-start md:px-6 border-b border-border relative z-10">
-        <div className="p-2 bg-gradient-to-br from-primary/20 to-transparent border border-primary/20 rounded-lg shadow-inner">
-          <Target className="w-5 h-5 text-primary shrink-0" />
+      <div className="hidden md:flex h-16 items-center justify-center md:justify-start md:px-6 border-b border-border relative z-10 shrink-0">
+        <div className="w-8 h-8 rounded-full border-2 border-primary/20 bg-gradient-to-br from-primary/20 to-transparent shadow-inner overflow-hidden shrink-0 flex items-center justify-center">
+          <img src="/logo.png" alt="Aegis Vault Logo" className="w-full h-full object-cover" />
         </div>
         <span className="ml-3 font-display font-bold tracking-tight hidden md:block text-lg bg-clip-text text-transparent bg-gradient-to-r from-foreground to-muted">Aegis Vault</span>
       </div>
       
-      <nav className="flex-1 py-6 flex flex-col gap-2 px-3 relative z-10 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 py-1 px-2 md:py-6 flex flex-row md:flex-col justify-around md:justify-start gap-1 md:gap-2 md:px-3 relative z-10 overflow-x-auto md:overflow-y-auto custom-scrollbar no-scrollbar">
         <NavItem 
           id="pipeline"
           icon={<LayoutDashboard size={18} />} 
@@ -61,18 +61,9 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
           active={currentView === 'admin'} 
           onClick={() => onViewChange('admin')} 
         />
-        
-        <div className="md:hidden flex flex-col gap-2 pt-4 border-t border-primary/5 mt-4">
-          <button onClick={scrollToTop} className="p-3 rounded-xl text-muted hover:text-primary transition-colors flex justify-center">
-            <ChevronUp size={18} />
-          </button>
-          <button onClick={scrollToBottom} className="p-3 rounded-xl text-muted hover:text-primary transition-colors flex justify-center">
-            <ChevronDown size={18} />
-          </button>
-        </div>
       </nav>
       
-      <div className="p-4 border-t border-border mt-auto relative z-10 flex flex-col gap-1">
+      <div className="hidden md:flex p-4 border-t border-border mt-auto relative z-10 flex-col gap-1">
         <div className="hidden md:flex flex-col gap-1 mb-2">
           <button 
             onClick={scrollToTop}
@@ -100,20 +91,20 @@ function NavItem({ id, icon, label, active, onClick }: { id: string, icon: React
   return (
     <button 
       onClick={onClick}
-      className={`relative w-full flex items-center justify-center md:justify-start p-3 rounded-xl transition-colors group z-10`}
+      className={`relative w-full flex flex-col md:flex-row items-center justify-center md:justify-start p-2 md:p-3 rounded-xl transition-colors group z-10 flex-1 md:flex-none`}
     >
       {active && (
         <motion.div 
           layoutId="sidebar-active"
-          className="absolute inset-0 bg-primary/10 border border-primary/20 rounded-xl"
+          className="absolute inset-x-1 inset-y-1 md:inset-0 bg-primary/10 border border-primary/20 rounded-xl"
           initial={false}
           transition={{ type: "spring", stiffness: 350, damping: 30 }}
         />
       )}
       <div className={`relative z-10 flex items-center justify-center ${active ? 'text-primary' : 'text-muted group-hover:text-foreground'}`}>
-        {icon}
+        {React.cloneElement(icon as React.ReactElement, { className: 'w-5 h-5 md:w-[18px] md:h-[18px]' })}
       </div>
-      <span className={`relative z-10 hidden md:block ml-3 text-sm font-semibold transition-colors ${active ? 'text-primary' : 'text-muted group-hover:text-foreground'}`}>
+      <span className={`relative z-10 mt-1 md:mt-0 md:ml-3 text-[10px] md:text-sm font-semibold transition-colors ${active ? 'text-primary' : 'text-muted group-hover:text-foreground'}`}>
         {label}
       </span>
     </button>

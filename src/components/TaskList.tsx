@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Task } from '../types';
 import { Plus, Check, Trash2, Edit2, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import ConfirmModal from './ConfirmModal';
 
 interface TaskListProps {
   tasks: Task[];
@@ -12,6 +13,7 @@ export default function TaskList({ tasks, onChange }: TaskListProps) {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskAssignee, setNewTaskAssignee] = useState('');
   const [newTaskDate, setNewTaskDate] = useState('');
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,8 +39,11 @@ export default function TaskList({ tasks, onChange }: TaskListProps) {
     onChange(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   };
 
-  const deleteTask = (id: string) => {
-    onChange(tasks.filter(t => t.id !== id));
+  const executeDeleteTask = () => {
+    if (taskToDelete) {
+      onChange(tasks.filter(t => t.id !== taskToDelete));
+      setTaskToDelete(null);
+    }
   };
 
   return (
@@ -128,7 +133,7 @@ export default function TaskList({ tasks, onChange }: TaskListProps) {
                 </div>
                 
                 <button
-                  onClick={() => deleteTask(task.id)}
+                  onClick={() => setTaskToDelete(task.id)}
                   className="text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 p-1 transition-opacity"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -141,6 +146,13 @@ export default function TaskList({ tasks, onChange }: TaskListProps) {
           )}
         </div>
       </div>
+      <ConfirmModal
+        isOpen={taskToDelete !== null}
+        title="Delete Task"
+        message="Are you sure you want to delete this task?"
+        onConfirm={executeDeleteTask}
+        onCancel={() => setTaskToDelete(null)}
+      />
     </div>
   );
 }

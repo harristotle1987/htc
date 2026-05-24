@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function ActivityLogs({ socket }: { socket: any }) {
+export default function ActivityLogs() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -15,16 +15,7 @@ export default function ActivityLogs({ socket }: { socket: any }) {
         console.error(err);
         setLoading(false);
       });
-
-    if (socket) {
-      socket.on('new-log', (newLog: any) => {
-        setLogs(prev => [newLog, ...prev]);
-      });
-      return () => {
-        socket.off('new-log');
-      };
-    }
-  }, [socket]);
+  }, []);
 
   if (loading) return <div className="p-8">Loading logs...</div>;
 

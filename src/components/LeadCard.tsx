@@ -60,7 +60,7 @@ export default function LeadCard({ lead, onClick }: LeadCardProps) {
         <div 
           {...attributes}
           {...listeners}
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted p-1 hover:bg-muted/10 rounded cursor-grab active:cursor-grabbing touch-none"
+          className="opacity-50 md:opacity-0 group-hover:opacity-100 transition-opacity text-muted p-1 hover:bg-muted/10 rounded cursor-grab active:cursor-grabbing touch-none"
         >
           <GripHorizontal className="w-4 h-4" />
         </div>

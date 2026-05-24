@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ActivityLogs from './ActivityLogs';
 
-export default function AdminPanel({ socket }: { socket: any }) {
+export default function AdminPanel() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,7 +46,7 @@ export default function AdminPanel({ socket }: { socket: any }) {
           </table>
         </div>
       </div>
-      <ActivityLogs socket={socket} />
+      <ActivityLogs />
     </div>
   );
 }

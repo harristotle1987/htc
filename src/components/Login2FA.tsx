@@ -19,17 +19,11 @@ export default function Login2FA({ onSuccess }: Login2FAProps) {
     setError('');
 
     try {
-      const res = await fetch('/api/2fa/verify-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
-      });
-      const data = await res.json();
-
-      if (data.success) {
+      // Simulate validation (accept any token of 6 digits for the static demo)
+      if (token.length >= 6) {
         onSuccess();
       } else {
-        setError(data.error || 'Invalid 2FA token');
+        setError('Invalid 2FA token');
       }
     } catch (err) {
       setError('An error occurred during verification');

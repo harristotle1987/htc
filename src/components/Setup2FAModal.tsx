@@ -18,14 +18,9 @@ export default function Setup2FAModal({ onClose, onSuccess }: Setup2FAProps) {
 
   useEffect(() => {
     const generateToken = async () => {
-      try {
-        const res = await fetch('/api/2fa/generate', { method: 'POST' });
-        const data = await res.json();
-        setQrCode(data.qrCode);
-        setSecret(data.secret);
-      } catch (err) {
-        setError('Failed to generate 2FA setup details');
-      }
+      // Mock for static app: Provide a dummy QR code
+      setQrCode('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIj48cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2UzZThlOCIvPjx0ZXh0IHg9Ijc1IiB5PSI3NSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zNmVtIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiI+UVIgQ29kZTwvdGV4dD48L3N2Zz4=');
+      setSecret('YOUR_MOCK_SECRET_KEY');
     };
     generateToken();
   }, []);
@@ -38,17 +33,12 @@ export default function Setup2FAModal({ onClose, onSuccess }: Setup2FAProps) {
     setError('');
 
     try {
-      const res = await fetch('/api/2fa/verify-setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, secret }),
-      });
-      const data = await res.json();
-
-      if (data.success) {
+      // Simulate validation (accept any token of 6 digits for the static demo)
+      if (token.length >= 6) {
+        localStorage.setItem('is2FAEnabled', 'true');
         onSuccess();
       } else {
-        setError(data.error || 'Invalid 2FA token');
+        setError('Invalid 2FA token');
       }
     } catch (err) {
       setError('An error occurred during verification');
