@@ -2,7 +2,7 @@ import React from 'react';
 import { Lead } from '../types';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { DollarSign, Clock, AlertTriangle, Zap, GripHorizontal } from 'lucide-react';
+import { DollarSign, Clock, AlertTriangle, Zap, GripHorizontal, Mail, Phone } from 'lucide-react';
 
 interface LeadCardProps {
   key?: React.Key;
@@ -31,6 +31,25 @@ export default function LeadCard({ lead, onClick }: LeadCardProps) {
     transition,
   };
 
+  const getHeatBorderClasses = (nextFollowUp: string | undefined): string => {
+    if (!nextFollowUp) return 'border border-border';
+    const followUpDate = new Date(nextFollowUp);
+    const today = new Date();
+    
+    // Set to midnight for proper day comparison
+    today.setHours(0, 0, 0, 0);
+    followUpDate.setHours(0, 0, 0, 0);
+    
+    const diffTime = today.getTime() - followUpDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 3) return 'border-2 border-red-500';
+    if (diffDays > 0) return 'border-2 border-orange-400';
+    return 'border border-border';
+  };
+
+  const heatClasses = getHeatBorderClasses(lead.nextFollowUp);
+
   if (isDragging) {
     return (
       <div 
@@ -45,7 +64,7 @@ export default function LeadCard({ lead, onClick }: LeadCardProps) {
     <div 
       ref={setNodeRef}
       style={style}
-      className="bg-card/80 backdrop-blur-md border border-border p-5 rounded-xl shadow-sm hover:border-primary/50 transition-all duration-300 group hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:-translate-y-0.5 relative overflow-hidden mb-3"
+      className={`bg-card/80 backdrop-blur-md ${heatClasses} p-5 rounded-xl shadow-sm hover:border-primary/50 transition-all duration-300 group hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:-translate-y-0.5 relative overflow-hidden mb-3`}
     >
       <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-[30px] pointer-events-none -mr-16 -mt-16 group-hover:bg-primary/10 transition-colors duration-500"></div>
 
@@ -57,12 +76,34 @@ export default function LeadCard({ lead, onClick }: LeadCardProps) {
           <h4 className="font-display font-bold text-foreground text-sm line-clamp-1 group-hover:text-primary transition-colors">{lead.name}</h4>
           <p className="text-xs text-muted font-medium line-clamp-1 mt-0.5">{lead.company}</p>
         </div>
-        <div 
-          {...attributes}
-          {...listeners}
-          className="opacity-50 md:opacity-0 group-hover:opacity-100 transition-opacity text-muted p-1 hover:bg-muted/10 rounded cursor-grab active:cursor-grabbing touch-none"
-        >
-          <GripHorizontal className="w-4 h-4" />
+        <div className="flex gap-1 items-center">
+          {lead.email && (
+            <a
+              href={`mailto:${lead.email}`}
+              className="p-1.5 rounded-full bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer"
+              aria-label="Email"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Mail className="w-3.5 h-3.5 text-primary" />
+            </a>
+          )}
+          {lead.phone && (
+            <a
+              href={`tel:${lead.phone}`}
+              className="p-1.5 rounded-full bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer"
+              aria-label="Phone"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Phone className="w-3.5 h-3.5 text-primary" />
+            </a>
+          )}
+          <div 
+            {...attributes}
+            {...listeners}
+            className="opacity-50 md:opacity-0 group-hover:opacity-100 transition-opacity text-muted p-1 hover:bg-muted/10 rounded cursor-grab active:cursor-grabbing touch-none"
+          >
+            <GripHorizontal className="w-4 h-4" />
+          </div>
         </div>
       </div>
       

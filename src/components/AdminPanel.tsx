@@ -25,23 +25,29 @@ export default function AdminPanel() {
           <table className="w-full text-left text-sm">
             <thead className="bg-card/80 text-muted uppercase tracking-widest text-xs sticky top-0 z-10 backdrop-blur-md border-b border-white/10">
               <tr>
-                <th className="px-6 py-4 font-semibold">Name</th>
-                <th className="px-6 py-4 font-semibold">Email</th>
-                <th className="px-6 py-4 font-semibold">Phone</th>
-                <th className="px-6 py-4 font-semibold">Subscription</th>
-                <th className="px-6 py-4 font-semibold">Joined</th>
+                <th className="px-6 py-4 font-semibold">ID</th>
+                <th className="px-6 py-4 font-semibold">Full Name</th>
+                <th className="px-6 py-4 font-semibold">Professional Email</th>
+                <th className="px-6 py-4 font-semibold">Contact Details/WhatsApp</th>
+                <th className="px-6 py-4 font-semibold">Tier Level</th>
+                <th className="px-6 py-4 font-semibold">Join Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {users.map((u, i) => (
+              {users.length > 0 ? users.map((u, i) => (
                 <tr key={i}>
+                  <td className="px-6 py-4">{u.id || 'N/A'}</td>
                   <td className="px-6 py-4 capitalize">{u.name}</td>
                   <td className="px-6 py-4">{u.email}</td>
                   <td className="px-6 py-4">{u.phone || 'N/A'}</td>
                   <td className="px-6 py-4 capitalize">{u.subscription || 'free'}</td>
                   <td className="px-6 py-4">{u.signupDate ? new Date(u.signupDate).toLocaleDateString() : 'N/A'}</td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                   <td colSpan={6} className="px-6 py-12 text-center text-muted font-bold text-lg">0 Active Users Found</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

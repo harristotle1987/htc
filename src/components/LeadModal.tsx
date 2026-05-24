@@ -98,14 +98,14 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
     >
       <motion.div 
-        initial={{ x: "100%" }}
-        animate={{ x: 0 }}
-        exit={{ x: "100%" }}
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="bg-card/95 backdrop-blur-xl w-full md:w-3/4 lg:w-1/2 max-w-2xl h-full border-l border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col relative overflow-hidden"
+        className="bg-card w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-xl border border-border overflow-hidden flex flex-col relative"
       >
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[100px] pointer-events-none -mr-48 -mt-48"></div>
 
@@ -117,8 +117,8 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
-                className="text-2xl lg:text-3xl font-display font-bold bg-transparent border-b border-transparent focus:border-primary focus:outline-none transition-colors w-full p-0 py-1"
-                placeholder="Lead Name"
+                className="text-2xl lg:text-3xl font-display font-bold bg-transparent border-b border-border hover:border-primary/50 focus:border-primary focus:outline-none transition-colors w-full p-0 py-1"
+                placeholder="Enter Lead Name"
               />
               <Edit3 className="w-4 h-4 text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>

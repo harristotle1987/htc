@@ -21,7 +21,7 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
   };
 
   return (
-    <aside className="w-full md:w-64 bg-card/80 backdrop-blur-3xl border-t md:border-t-0 md:border-r border-border h-[4.5rem] md:h-full flex flex-row md:flex-col transition-all duration-300 z-40 shrink-0 relative shadow-[0_-4px_24px_rgba(0,0,0,0.1)] md:shadow-[1px_0_24px_rgba(0,0,0,0.1)]">
+    <aside className="hidden md:flex w-full md:w-64 bg-card/80 backdrop-blur-3xl border-t md:border-t-0 md:border-r border-border h-[4.5rem] md:h-full flex-row md:flex-col transition-all duration-300 z-40 shrink-0 relative shadow-[0_-4px_24px_rgba(0,0,0,0.1)] md:shadow-[1px_0_24px_rgba(0,0,0,0.1)]">
       {/* Decorative top glow */}
       <div className="absolute top-0 left-0 w-full md:w-full h-1 md:h-32 bg-primary/20 md:bg-primary/5 blur-[10px] md:blur-[50px] pointer-events-none md:rounded-full md:-translate-y-1/2"></div>
       

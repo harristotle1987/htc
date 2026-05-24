@@ -15,6 +15,7 @@ import LandingPage from './components/LandingPage';
 import PricingMatrix from './components/PricingMatrix';
 import CsvImporter from './components/CsvImporter';
 import AdminPanel from './components/AdminPanel';
+import BottomNav from './components/BottomNav';
 
 const socket = io();
 
@@ -36,12 +37,37 @@ export default function App() {
     localStorage.setItem('currentView', currentView);
   }, [currentView]);
   const [contactSearch, setContactSearch] = useState('');
+  const [notifiedTasks, setNotifiedTasks] = useState<Set<string>>(new Set());
   
   // Auth state
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('isAuthenticated') === 'true');
   const [showSetup2FA, setShowSetup2FA] = useState(false);
   const [showDisable2FA, setShowDisable2FA] = useState(false);
+
+  useEffect(() => {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    if (Notification.permission !== 'granted') return;
+
+    const now = new Date();
+    leads.forEach(lead => {
+      lead.tasks?.forEach(task => {
+        if (task.dueDate && !task.completed && !notifiedTasks.has(task.id)) {
+          const dueDate = new Date(task.dueDate);
+          if (dueDate <= now) {
+            new Notification('Task Due', {
+              body: `Task "${task.title}" for lead "${lead.name}" is due.`
+            });
+            setNotifiedTasks(prev => new Set(prev).add(task.id));
+          }
+        }
+      });
+    });
+  }, [leads, notifiedTasks]);
   
   // Bulk Actions
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
@@ -354,7 +380,7 @@ export default function App() {
 
   if (isAuthChecking) {
     return (
-      <div className="h-screen w-full bg-background flex items-center justify-center">
+      <div className="min-h-[100dvh] w-full bg-background flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
@@ -370,8 +396,9 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-full bg-background text-foreground flex flex-col-reverse md:flex-row font-sans transition-colors duration-300 overflow-hidden selection:bg-primary/30">
+    <div className={`${theme} min-h-[100dvh] w-full ${theme === 'dark' ? 'bg-[#0B0A0A] text-zinc-50' : 'bg-[#FDFBF7] text-zinc-900'} flex flex-col md:flex-row font-sans transition-colors duration-300 overflow-y-auto selection:bg-primary/30`}>
       <Sidebar currentView={currentView} onViewChange={setCurrentView} />
+      <BottomNav currentView={currentView} onViewChange={setCurrentView} />
       <div className="flex-1 flex flex-col min-w-0 bg-gradient-to-br from-background via-accent/20 to-background dark:via-background dark:to-card/50">
         <header className="border-b border-border bg-background/80 backdrop-blur-xl px-4 md:px-8 py-4 flex items-center justify-between h-20 shrink-0 z-10 transition-all duration-300">
           <div className="flex items-center gap-3">
@@ -432,7 +459,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 flex flex-col p-4 md:p-8 overflow-auto relative custom-scrollbar pb-24 md:pb-8">
+        <main className="flex-1 flex flex-col p-2 md:p-8 overflow-auto relative custom-scrollbar pb-24 md:pb-8">
           <AnimatePresence mode="wait">
             {currentView === 'pipeline' && (
               <motion.div 

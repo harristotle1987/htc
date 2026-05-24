@@ -63,7 +63,7 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
   if (loading) {
     return (
       <div className="w-full shrink-0 z-10">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-6 py-4 w-full border-b bg-background border-border transition-colors duration-300">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 px-4 md:px-6 py-4 w-full border-b bg-background border-border transition-colors duration-300">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="bg-card border border-border/50 shadow-sm p-5 rounded-lg flex flex-col justify-center animate-pulse transition-colors duration-300">
               <div className="h-3 w-1/2 bg-muted rounded mb-3"></div>
@@ -94,7 +94,7 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
 
   return (
     <div className="w-full shrink-0 z-10 flex flex-col">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-6 py-4 w-full border-b bg-background border-border transition-colors duration-300">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 px-4 md:px-6 py-4 w-full border-b bg-background border-border transition-colors duration-300">
         <AnimatePresence mode="popLayout">
           {cardOrder.map((id) => {
             const card = cardData[id];

@@ -48,11 +48,21 @@ export default function TaskList({ tasks, onChange }: TaskListProps) {
 
   return (
     <div className="border border-border rounded-xl bg-background/50 overflow-hidden shadow-inner">
-      <div className="p-3 border-b border-border bg-card/80 backdrop-blur-md flex items-center justify-between">
-        <h4 className="text-[10px] font-bold tracking-widest uppercase text-muted">Follow-Up Tasks</h4>
-        <div className="text-[10px] text-muted-foreground font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-          {tasks.filter(t => t.completed).length}/{tasks.length}
+      <div className="border-b border-border bg-card/80 backdrop-blur-md">
+        <div className="p-3 flex items-center justify-between">
+          <h4 className="text-[10px] font-bold tracking-widest uppercase text-muted">Follow-Up Tasks</h4>
+          <div className="text-[10px] text-muted-foreground font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+            {tasks.filter(t => t.completed).length}/{tasks.length}
+          </div>
         </div>
+        {tasks.length > 0 && (
+          <div className="w-full h-1 bg-border/50">
+            <div
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100)}%` }}
+            />
+          </div>
+        )}
       </div>
       
       <div className="p-4 space-y-4">

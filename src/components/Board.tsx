@@ -171,14 +171,14 @@ export default function Board({ leads, onDragEnd, onLeadClick }: BoardProps) {
       >
         <div 
           ref={scrollContainerRef}
-          className="flex gap-4 overflow-x-auto pb-8 transition-all duration-300 horizontal-scrollbar pr-4 scroll-smooth"
+          className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-8 transition-all duration-300 md:horizontal-scrollbar"
         >
           {STAGES.map(stage => {
             const columnLeads = leads.filter(l => l.stage === stage);
             return (
               <div 
                 key={stage} 
-                className="shrink-0 block w-[85vw] sm:w-[320px] md:w-[340px]"
+                className="w-full md:shrink-0 md:w-[320px] lg:w-[340px]"
               >
                 <Column 
                   stage={stage} 

@@ -29,6 +29,7 @@ export async function initDb() {
         tasks TEXT
       )
     `;
+    await sql`ALTER TABLE leads ALTER COLUMN stage TYPE VARCHAR(100) USING stage::varchar`;
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS tasks TEXT`;
 
     // Seed mock data

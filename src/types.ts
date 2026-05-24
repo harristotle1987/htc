@@ -62,6 +62,8 @@ export interface Lead {
   budgetAnchor?: string;
   nextFollowUp: string;
   notes?: string;
+  email?: string;
+  phone?: string;
   stakeholders?: Stakeholder[];
   tasks?: Task[];
 }
