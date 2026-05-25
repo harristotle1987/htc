@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Lead, Task } from '../types';
-import { X, Save, Trash2, Edit3, Target, Crosshair, Calendar, Mail, Loader2, CheckCircle2 } from 'lucide-react';
+import { X, Save, Trash2, Edit3, Target, Crosshair, Calendar, Mail, Loader2, CheckCircle2, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
 import InfluenceMap from './InfluenceMap';
 import RecentEmails from './RecentEmails';
 import TaskList from './TaskList';
@@ -34,7 +34,8 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
     closerId: lead.closerId || '',
     closerPercentage: lead.closerPercentage || 0,
     amountPaid: lead.amountPaid || 0,
-    paymentConfirmed: lead.paymentConfirmed || false
+    paymentConfirmed: lead.paymentConfirmed || false,
+    talkToListenRatio: lead.talkToListenRatio || 0
   });
 
   const [calStatus, setCalStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -172,9 +173,10 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
         </div>
 
         {/* Body */}
-        <div className="p-6 lg:p-8 overflow-y-auto flex-1 custom-scrollbar space-y-10 relative z-10">
-          
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="flex-1 overflow-hidden relative flex">
+          <div className="p-6 lg:p-8 overflow-y-auto flex-1 custom-scrollbar space-y-10 relative z-10">
+            
+            <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-6">
               <RecentEmails query={formData.name || ''} />
               <TaskList tasks={formData.tasks || []} onChange={(t) => setFormData(p => ({ ...p, tasks: t }))} />
@@ -244,6 +246,22 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
                       className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary"
                     />
                     <label className="text-[10px] font-bold text-muted tracking-widest uppercase ml-1">Confirm Payment</label>
+                  </div>
+
+                  <div className="space-y-2.5 group">
+                    <label className="text-[10px] font-bold text-muted tracking-widest uppercase ml-1">Talk to Listen Ratio (%)</label>
+                    <div className="flex items-center gap-4">
+                      <input 
+                        type="range"
+                        name="talkToListenRatio"
+                        min="0"
+                        max="100"
+                        value={formData.talkToListenRatio}
+                        onChange={(e) => setFormData(prev => ({ ...prev, talkToListenRatio: parseInt(e.target.value) }))}
+                        className="flex-1 accent-primary"
+                      />
+                      <span className="text-sm font-bold text-primary min-w-[3rem] text-right">{formData.talkToListenRatio}%</span>
+                    </div>
                   </div>
                 </div>
 
@@ -367,7 +385,39 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
 
         </div>
 
-        {/* Footer */}
+        {/* Scroll/Drag Navigation Handle UI */}
+        <div className="w-12 bg-background/40 flex flex-col items-center justify-between py-8 shrink-0 border-l border-border relative group/scroll">
+          <button 
+            onClick={(e) => {
+              const el = e.currentTarget.parentElement?.previousElementSibling;
+              if (el) el.scrollBy({ top: -200, behavior: 'smooth' });
+            }}
+            className="p-2 rounded-lg bg-muted/10 hover:bg-primary/20 text-muted hover:text-primary transition-all rotate-0"
+            title="Scroll Up"
+          >
+            <ChevronUp className="w-5 h-5" />
+          </button>
+          
+          <div className="flex flex-col gap-1 opacity-20 group-hover/scroll:opacity-100 transition-opacity cursor-ns-resize h-40 items-center justify-center">
+            <GripVertical className="w-5 h-5 text-primary" />
+            <GripVertical className="w-5 h-5 text-primary" />
+            <GripVertical className="w-5 h-5 text-primary" />
+          </div>
+
+          <button 
+            onClick={(e) => {
+              const el = e.currentTarget.parentElement?.previousElementSibling;
+              if (el) el.scrollBy({ top: 200, behavior: 'smooth' });
+            }}
+            className="p-2 rounded-lg bg-muted/10 hover:bg-primary/20 text-muted hover:text-primary transition-all"
+            title="Scroll Down"
+          >
+            <ChevronDown className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Footer */}
         <div className="p-6 lg:p-8 border-t border-border bg-background/50 backdrop-blur-md flex justify-between gap-3 shrink-0 relative z-20">
           <button 
             onClick={() => onDelete(lead.id)}

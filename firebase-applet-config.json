@@ -1,9 +1,9 @@
 {
-  "apiKey": "AIzaSyAvKTJzMgLPdZQYPa9GXi1546h4Kw2Oj8M",
-  "authDomain": "aegisvault-crm.firebaseapp.com",
-  "projectId": "aegisvault-crm",
-  "storageBucket": "aegisvault-crm.firebasestorage.app",
-  "messagingSenderId": "565687356682",
-  "appId": "1:565687356682:web:3e4af2c1c6e92287463ef3",
-  "measurementId": "G-8Z2MKG7VGT"
+  "projectId": "gen-lang-client-0230659025",
+  "appId": "1:274317360598:web:4d7ef90ec7cc8346c7f877",
+  "apiKey": "AIzaSyCHGuBs2MTJjLgbiU1hoP4g6FjumWRn4yU",
+  "authDomain": "gen-lang-client-0230659025.firebaseapp.com",
+  "storageBucket": "gen-lang-client-0230659025.firebasestorage.app",
+  "messagingSenderId": "274317360598",
+  "measurementId": ""
 }

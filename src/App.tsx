@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Lead, Stage, MetricData } from './types';
 import Board from './components/Board';
 import Dashboard from './components/Dashboard';
-import { Moon, Sun, Plus, Database, Download, Trash2, Edit3, Shield, CheckCircle } from 'lucide-react';
+import { Moon, Sun, Plus, Database, Download, Trash2, Edit3, Shield, CheckCircle, Target } from 'lucide-react';
 import LeadModal from './components/LeadModal';
 import Sidebar, { ViewType } from './components/Sidebar';
 import { AnimatePresence, motion } from 'motion/react';
@@ -16,6 +16,8 @@ import PricingMatrix from './components/PricingMatrix';
 import CsvImporter from './components/CsvImporter';
 import AdminPanel from './components/AdminPanel';
 import BottomNav from './components/BottomNav';
+import PrivacyPolicy from './components/PrivacyPolicy';
+import TermsOfService from './components/TermsOfService';
 
 const socket = io();
 
@@ -24,6 +26,10 @@ import ConfirmModal from './components/ConfirmModal';
 export default function App() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'single' | 'bulk', id?: string } | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [monthlyTarget, setMonthlyTarget] = useState<number>(() => {
+    const saved = localStorage.getItem('monthlyTarget');
+    return saved ? parseInt(saved, 10) : 50000;
+  });
   const [loading, setLoading] = useState(true);
   const [setupRequired, setSetupRequired] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>( localStorage.getItem('theme') as 'dark' | 'light' || 'dark');
@@ -103,6 +109,10 @@ export default function App() {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('monthlyTarget', monthlyTarget.toString());
+  }, [monthlyTarget]);
 
   useEffect(() => {
     fetchLeadsAndMetrics();
@@ -475,7 +485,7 @@ export default function App() {
                 <div className="flex-[1] flex flex-col min-w-0 w-full">
                   {/* Banner removed */}
                   
-                  <Dashboard metrics={metrics} leads={leads} loading={loading} tier={tier} />
+                  <Dashboard metrics={metrics} leads={leads} loading={loading} tier={tier} monthlyTarget={monthlyTarget} />
 
                   <div className="flex justify-between items-center mb-4 px-2">
                     <h2 className="text-xl font-bold">Pipeline</h2>
@@ -688,6 +698,61 @@ export default function App() {
                     
                     <motion.div 
                       whileHover={{ scale: 1.01 }}
+                      className="p-5 md:p-6 border border-border rounded-xl bg-background/50 flex flex-col gap-6 mt-8"
+                    >
+                      <div className="flex flex-col sm:flex-row gap-4 sm:gap-0 justify-between items-start sm:items-center">
+                        <div>
+                          <h3 className="text-sm md:text-base font-bold flex items-center gap-2">
+                            <Target className="w-4 h-4 text-primary" />
+                            Revenue Target Configuration
+                          </h3>
+                          <p className="text-xs md:text-sm text-muted mt-1.5 max-w-sm">Set your monthly target to track progress in the dashboard.</p>
+                        </div>
+                        <div className="w-full sm:w-auto flex items-center gap-2 bg-card border border-border px-4 py-2 rounded-xl">
+                          <span className="text-muted text-sm font-bold">$</span>
+                          <input 
+                            type="number"
+                            value={monthlyTarget}
+                            onChange={(e) => setMonthlyTarget(parseInt(e.target.value) || 0)}
+                            className="bg-transparent border-none focus:outline-none font-mono font-bold text-primary w-24"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="h-px bg-border w-full"></div>
+
+                      <h3 className="text-sm md:text-base font-bold flex items-center gap-2">
+                        <Target className="w-4 h-4 text-primary" />
+                        Performance Analytics
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="p-4 bg-card/60 border border-border rounded-lg">
+                          <p className="text-[10px] font-bold text-muted tracking-widest uppercase">Avg Talk to Listen Ratio</p>
+                          <p className="text-2xl font-bold mt-1 text-primary">
+                            {(() => {
+                              const leadsWithRatio = leads.filter(l => (l.talkToListenRatio ?? 0) > 0);
+                              if (leadsWithRatio.length === 0) return '0%';
+                              const avg = leadsWithRatio.reduce((acc, curr) => acc + (curr.talkToListenRatio || 0), 0) / leadsWithRatio.length;
+                              return `${Math.round(avg)}%`;
+                            })()}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-card/60 border border-border rounded-lg">
+                          <p className="text-[10px] font-bold text-muted tracking-widest uppercase">Show-to-Close Rate</p>
+                          <p className="text-2xl font-bold mt-1 text-primary">
+                            {(() => {
+                              const shows = leads.filter(l => l.stage !== 'Discovery Scheduled' && l.stage !== 'Nurture / Long-Term').length;
+                              const closes = leads.filter(l => l.stage === 'Closed-Won').length;
+                              if (shows === 0) return '0%';
+                              return `${Math.round((closes / shows) * 100)}%`;
+                            })()}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+
+                    <motion.div 
+                      whileHover={{ scale: 1.01 }}
                       className="p-5 md:p-6 border border-red-500/20 rounded-xl bg-red-500/5 flex flex-col sm:flex-row gap-4 sm:gap-0 justify-between items-start sm:items-center mt-6 md:mt-8 relative overflow-hidden"
                     >
                       <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 blur-[40px] rounded-full pointer-events-none"></div>
@@ -714,7 +779,56 @@ export default function App() {
                 <AdminPanel />
               </motion.div>
             )}
+
+            {currentView === 'privacy' && (
+              <motion.div 
+                key="privacy"
+                variants={pageVariants}
+                initial="initial"
+                animate="in"
+                exit="out"
+                transition={pageTransition}
+                className="w-full"
+              >
+                <PrivacyPolicy onBack={() => setCurrentView('pipeline')} />
+              </motion.div>
+            )}
+
+            {currentView === 'terms' && (
+              <motion.div 
+                key="terms"
+                variants={pageVariants}
+                initial="initial"
+                animate="in"
+                exit="out"
+                transition={pageTransition}
+                className="w-full"
+              >
+                <TermsOfService onBack={() => setCurrentView('pipeline')} />
+              </motion.div>
+            )}
           </AnimatePresence>
+
+          {/* Footer Navigation */}
+          <footer className="mt-auto pt-12 pb-8 border-t border-border/30">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-2">
+              <p className="text-[10px] text-muted font-bold uppercase tracking-widest">© 2026 Aegis Vault CRM. All rights reserved.</p>
+              <div className="flex items-center gap-6">
+                <button 
+                  onClick={() => setCurrentView('privacy')}
+                  className="text-[10px] text-muted hover:text-primary transition-colors font-bold uppercase tracking-widest"
+                >
+                  Privacy Policy
+                </button>
+                <button 
+                  onClick={() => setCurrentView('terms')}
+                  className="text-[10px] text-muted hover:text-primary transition-colors font-bold uppercase tracking-widest"
+                >
+                  Terms of Service
+                </button>
+              </div>
+            </div>
+          </footer>
         </main>
       </div>
 

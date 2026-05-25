@@ -2,7 +2,7 @@ import React from 'react';
 import { Target, LayoutDashboard, Users, Shield, Settings, ChevronUp, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
 
-export type ViewType = 'pipeline' | 'contacts' | 'security' | 'admin';
+export type ViewType = 'pipeline' | 'contacts' | 'security' | 'admin' | 'privacy' | 'terms';
 
 interface SidebarProps {
   currentView: ViewType;

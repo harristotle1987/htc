@@ -9,9 +9,10 @@ interface DashboardProps {
   leads?: Lead[];
   loading?: boolean;
   tier?: string | null;
+  monthlyTarget?: number;
 }
 
-export default function Dashboard({ metrics, leads = [], loading = false, tier = 'free' }: DashboardProps) {
+export default function Dashboard({ metrics, leads = [], loading = false, tier = 'free', monthlyTarget = 50000 }: DashboardProps) {
   const isBlur = tier === 'free';
   const [cardOrder, setCardOrder] = useState<string[]>(['stc', 'ads', 'cc', 'tlr']);
 
@@ -29,24 +30,45 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
     }
   }, []);
 
-  // Fallback state logic always renders this panel now
-  // Compute metrics dynamically if leads are provided
+  // Compute metrics dynamically from leads
   let computedAverageDealSize = metrics?.averageDealSize || '$0';
   let computedCashCollected = metrics?.cashCollected || '$0';
   let showToClose = metrics?.showToCloseRate || '0%';
-  let talkToListen = metrics?.talkToListenRatio || '32% / 68%';
+  let talkToListen = metrics?.talkToListenRatio || '0%';
   
   if (leads.length > 0) {
-    const dealsWithSize = leads.filter(l => l.dealSize && l.dealSize > 0);
-    if (dealsWithSize.length > 0) {
-      const sum = dealsWithSize.reduce((acc, curr) => acc + (curr.dealSize || 0), 0);
-      const avg = Math.round(sum / dealsWithSize.length);
+    // Average Deal Size: Focus on Won deals first, fallback to active pipeline
+    const wonLeads = leads.filter(l => l.stage === 'Closed-Won');
+    const activeLeads = leads.filter(l => !['Discovery Scheduled', 'Nurture / Long-Term', 'Closed Lost'].includes(l.stage));
+    
+    if (wonLeads.length > 0) {
+      const sum = wonLeads.reduce((acc, curr) => acc + (curr.dealSize || 0), 0);
+      const avg = Math.round(sum / wonLeads.length);
+      computedAverageDealSize = '$' + avg.toLocaleString();
+    } else if (activeLeads.length > 0) {
+      const sum = activeLeads.reduce((acc, curr) => acc + (curr.dealSize || 0), 0);
+      const avg = Math.round(sum / activeLeads.length);
       computedAverageDealSize = '$' + avg.toLocaleString();
     }
     
-    const wonLeads = leads.filter(l => l.stage === 'Closed-Won' && l.paymentConfirmed);
-    const cash = wonLeads.reduce((acc, curr) => acc + ((curr.amountPaid || 0) * ((curr.closerPercentage || 0) / 100)), 0);
+    // Cash Collected (Revenue based on closer percentage)
+    const paidLeads = leads.filter(l => l.stage === 'Closed-Won' && l.paymentConfirmed);
+    const cash = paidLeads.reduce((acc, curr) => acc + ((curr.amountPaid || 0) * ((curr.closerPercentage || 0) / 100)), 0);
     computedCashCollected = '$' + cash.toLocaleString();
+
+    // Show-to-Close Rate
+    const shows = leads.filter(l => !['Discovery Scheduled', 'Nurture / Long-Term'].includes(l.stage)).length;
+    const closes = wonLeads.length;
+    if (shows > 0) {
+      showToClose = Math.round((closes / shows) * 100) + '%';
+    }
+
+    // Average Talk to Listen Ratio
+    const leadsWithRatio = leads.filter(l => (l.talkToListenRatio ?? 0) > 0);
+    if (leadsWithRatio.length > 0) {
+      const avg = leadsWithRatio.reduce((acc, curr) => acc + (curr.talkToListenRatio || 0), 0) / leadsWithRatio.length;
+      talkToListen = Math.round(avg) + '%';
+    }
   }
 
   // Parse Talk to Listen KPI to check if ratio drops under 35 (the conversational boundary)
@@ -134,7 +156,7 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
           <AnalyticsChart />
         </div>
         <div className="lg:col-span-1">
-          <RevenueGauge leads={leads} targetRevenue={50000} />
+          <RevenueGauge leads={leads} targetRevenue={monthlyTarget} />
         </div>
       </div>
     </div>

@@ -68,6 +68,7 @@ export interface Lead {
   closerPercentage?: number;
   amountPaid?: number;
   paymentConfirmed?: boolean;
+  talkToListenRatio?: number;
   stakeholders?: Stakeholder[];
   tasks?: Task[];
 }

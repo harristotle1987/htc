@@ -8,8 +8,15 @@ import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
+import { OAuth2Client } from 'google-auth-library';
 
 dotenv.config();
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://ais-dev-rsuujetimibenrq4xxjyb2-69440511109.europe-west2.run.app/api/auth/callback/google';
+
+const oauth2Client = new OAuth2Client(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
 
 const PORT = 3000;
 const app = express();
@@ -49,7 +56,8 @@ function mapPostgresLead(row: any) {
     closerId: row.closer_id || '',
     closerPercentage: row.closer_percentage ? Number(row.closer_percentage) : 0,
     amountPaid: row.amount_paid ? Number(row.amount_paid) : 0,
-    paymentConfirmed: !!row.payment_confirmed
+    paymentConfirmed: !!row.payment_confirmed,
+    talkToListenRatio: row.talk_to_listen_ratio ? Number(row.talk_to_listen_ratio) : 0
   };
 }
 
@@ -89,7 +97,74 @@ function runInBackground(promise: Promise<any>, description: string) {
   promise.catch(err => console.error(`Background task failed: ${description}`, err));
 }
 
-// ... handlers
+// OAuth Callback Handler
+app.get('/api/auth/callback/google', async (req, res) => {
+  const { code, error } = req.query;
+
+  if (error) {
+    console.error('OAuth callback error:', error);
+    return res.redirect('/settings?auth_error=true');
+  }
+
+  if (!code) {
+    return res.redirect('/settings?auth_error=missing_code');
+  }
+
+  try {
+    const { tokens } = await oauth2Client.getToken(code as string);
+    oauth2Client.setCredentials(tokens);
+
+    // Save tokens and update sheet connection flag
+    const document = await getSheetsDoc();
+    let sheet = document?.sheetsByTitle['Configuration'];
+    
+    if (!sheet) {
+        sheet = await document!.addSheet({ title: 'Configuration', headerValues: ['Key', 'Value'] });
+    }
+    
+    const rows = await sheet.getRows();
+    let configRow = rows.find(r => r.get('Key') === 'GoogleCalendarConnected');
+    
+    if (configRow) {
+        configRow.set('Value', 'Connected');
+        await configRow.save();
+    } else {
+        await sheet.addRow({ Key: 'GoogleCalendarConnected', Value: 'Connected' });
+    }
+
+    res.redirect('/settings?auth_success=true');
+  } catch (err) {
+    console.error('OAuth token exchange failed:', err);
+    res.redirect('/settings?auth_error=token_exchange_failed');
+  }
+});
+
+app.post('/api/auth/2fa/generate', async (req, res) => {
+  const { email } = req.body;
+  const secret = speakeasy.generateSecret({ name: `Aegis Vault (${email})` });
+  const qrCodeDataUrl = await QRCode.toDataURL(secret.otpauth_url!);
+
+  res.json({ secret: secret.base32, qrCodeDataUrl });
+});
+
+app.post('/api/auth/2fa/verify', async (req, res) => {
+  const { secret, token, email } = req.body;
+  
+  const verified = speakeasy.totp.verify({
+    secret: secret,
+    encoding: 'base32',
+    token: token
+  });
+  
+  if (verified) {
+    // In a real app, update user in DB here
+    // await sql`UPDATE users SET two_factor_secret = ${secret}, two_factor_enabled = true WHERE email = ${email}`;
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ error: 'Invalid token' });
+  }
+});
+
 app.get('/api/leads', async (req, res) => {
   try {
     const dbLeads = await sql`SELECT * FROM leads ORDER BY id ASC`;
@@ -349,7 +424,7 @@ app.delete('/api/metrics/:id', async (req, res) => {
 // POST /api/leads - Create a new lead
 app.post('/api/leads', async (req, res) => {
   const id = `L${Date.now()}`;
-  const { name, company, dealSize, stage, callType, bleedingNeck, emotionalAnchor, coi, futureIdentity, budgetAnchor, nextFollowUp, notes, tasks, closerId, closerPercentage, amountPaid, paymentConfirmed } = req.body;
+  const { name, company, dealSize, stage, callType, bleedingNeck, emotionalAnchor, coi, futureIdentity, budgetAnchor, nextFollowUp, notes, tasks, closerId, closerPercentage, amountPaid, paymentConfirmed, talkToListenRatio } = req.body;
 
   // 1. Write to Neon Postgres
   try {
@@ -357,7 +432,7 @@ app.post('/api/leads', async (req, res) => {
       INSERT INTO leads (
         id, name, company, deal_size, stage, call_type, bleeding_neck, 
         emotional_anchor, coi, future_identity, budget_anchor, next_follow_up, notes, tasks,
-        closer_id, closer_percentage, amount_paid, payment_confirmed
+        closer_id, closer_percentage, amount_paid, payment_confirmed, talk_to_listen_ratio
       ) VALUES (
         ${id}, 
         ${name || ''}, 
@@ -376,7 +451,8 @@ app.post('/api/leads', async (req, res) => {
         ${closerId || ''},
         ${closerPercentage || 0},
         ${amountPaid || 0},
-        ${paymentConfirmed || false}
+        ${paymentConfirmed || false},
+        ${talkToListenRatio || 0}
       )
     `;
     console.log(`Lead ${id} saved to Neon Postgres.`);
@@ -576,7 +652,8 @@ app.patch('/api/leads/:id', async (req, res) => {
         closerId: updates.closerId !== undefined ? updates.closerId : current.closer_id,
         closerPercentage: updates.closerPercentage !== undefined ? updates.closerPercentage : current.closer_percentage,
         amountPaid: updates.amountPaid !== undefined ? updates.amountPaid : current.amount_paid,
-        paymentConfirmed: updates.paymentConfirmed !== undefined ? updates.paymentConfirmed : current.payment_confirmed
+        paymentConfirmed: updates.paymentConfirmed !== undefined ? updates.paymentConfirmed : current.payment_confirmed,
+        talkToListenRatio: updates.talkToListenRatio !== undefined ? updates.talkToListenRatio : current.talk_to_listen_ratio
       };
 
       await sql`
@@ -597,7 +674,8 @@ app.patch('/api/leads/:id', async (req, res) => {
           closer_id = ${merged.closerId},
           closer_percentage = ${merged.closerPercentage},
           amount_paid = ${merged.amountPaid},
-          payment_confirmed = ${merged.paymentConfirmed}
+          payment_confirmed = ${merged.paymentConfirmed},
+          talk_to_listen_ratio = ${merged.talkToListenRatio}
         WHERE id = ${id}
       `;
       console.log(`Lead ${id} updated in Neon Postgres.`);

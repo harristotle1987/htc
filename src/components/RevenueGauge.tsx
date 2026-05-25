@@ -21,7 +21,7 @@ const RevenueGauge: React.FC<RevenueGaugeProps> = ({ leads, targetRevenue }) => 
     <div className="bg-card p-6 rounded-xl shadow-sm border border-border h-full flex flex-col items-center justify-center">
       <h3 className="text-sm font-semibold text-muted mb-4">Monthly Revenue Target Progress</h3>
       <div className="w-full h-48">
-        <ResponsiveContainer>
+        <ResponsiveContainer minWidth={0} minHeight={0}>
           <PieChart>
             <Pie
               data={data}

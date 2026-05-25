@@ -30,7 +30,8 @@ export async function initDb() {
         closer_id VARCHAR(50),
         closer_percentage NUMERIC,
         amount_paid NUMERIC,
-        payment_confirmed BOOLEAN DEFAULT FALSE
+        payment_confirmed BOOLEAN DEFAULT FALSE,
+        talk_to_listen_ratio NUMERIC
       )
     `;
     await sql`ALTER TABLE leads ALTER COLUMN stage TYPE VARCHAR(100) USING stage::varchar`;
@@ -39,6 +40,7 @@ export async function initDb() {
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS closer_percentage NUMERIC`;
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS amount_paid NUMERIC`;
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS payment_confirmed BOOLEAN DEFAULT FALSE`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS talk_to_listen_ratio NUMERIC`;
 
     // Seed mock data
     const existingLeads = await sql`SELECT count(*) FROM leads`;
@@ -75,11 +77,96 @@ export async function initDb() {
         { id: 'L28', name: 'Thomas', company: 'WebServe', deal_size: 38000, stage: 'Post-Discovery', call_type: 'Inbound', bleeding_neck: 'Downtime', emotional_anchor: 'Reliability', coi: '$200k', future_identity: 'Protector', budget_anchor: '$38k', next_follow_up: '2026-05-29', notes: 'SLA discussion', tasks: '[]' },
         { id: 'L29', name: 'Sophia J', company: 'LogiFlow', deal_size: 21000, stage: 'Pitch Complete', call_type: 'Inbound', bleeding_neck: 'Errors', emotional_anchor: 'Accuracy', coi: 'Waste', future_identity: 'Precisionist', budget_anchor: '$21k', next_follow_up: '2026-05-30', notes: 'Pricing', tasks: '[]' },
         { id: 'L30', name: 'George', company: 'DataViz', deal_size: 26000, stage: 'Pending Payment', call_type: 'Inbound', bleeding_neck: 'Silos', emotional_anchor: 'Visibility', coi: 'ROI', future_identity: 'Visionary', budget_anchor: '$26k', next_follow_up: '2026-05-31', notes: 'Closing', tasks: '[]' },
+        // Add 5 more per stage
+        { id: 'L31', name: 'Oliver', company: 'TechFlow', deal_size: 15000, stage: 'Discovery Scheduled', call_type: 'Warm', emotional_anchor: 'Speed', coi: 'Time', next_follow_up: '2026-05-25', tasks: '[]' },
+        { id: 'L32', name: 'Noah', company: 'LogiLink', deal_size: 12000, stage: 'Discovery Scheduled', call_type: 'Already Burned', emotional_anchor: 'Ease', coi: 'Waste', next_follow_up: '2026-05-26', tasks: '[]' },
+        { id: 'L33', name: 'Liam', company: 'NexGen', deal_size: 18000, stage: 'Discovery Scheduled', call_type: 'Warm', emotional_anchor: 'Innovation', coi: 'Market', next_follow_up: '2026-05-27', tasks: '[]' },
+        { id: 'L34', name: 'Ethan', company: 'PrimeOps', deal_size: 22000, stage: 'Discovery Scheduled', call_type: 'Cold Outreach', emotional_anchor: 'Safety', coi: 'Risk', next_follow_up: '2026-05-28', tasks: '[]' },
+        { id: 'L35', name: 'Aiden', company: 'CloudBase', deal_size: 25000, stage: 'Discovery Scheduled', call_type: 'Inbound Warm', emotional_anchor: 'Scale', coi: '$10k', next_follow_up: '2026-05-29', tasks: '[]' },
+        
+        { id: 'L36', name: 'Emma', company: 'DataPros', deal_size: 30000, stage: 'Post-Discovery', call_type: 'Inbound Warm', emotional_anchor: 'Clarity', coi: '$50k', next_follow_up: '2026-05-25', tasks: '[]' },
+        { id: 'L37', name: 'Ava', company: 'SoftCorp', deal_size: 20000, stage: 'Post-Discovery', call_type: 'Warm', emotional_anchor: 'Freedom', coi: 'Churn', next_follow_up: '2026-05-26', tasks: '[]' },
+        { id: 'L38', name: 'Sophia', company: 'SwiftLog', deal_size: 15000, stage: 'Post-Discovery', call_type: 'Skeptical Technician', emotional_anchor: 'Speed', coi: 'Loss', next_follow_up: '2026-05-27', tasks: '[]' },
+        { id: 'L39', name: 'Isabella', company: 'Zenith', deal_size: 40000, stage: 'Post-Discovery', call_type: 'High-Status Expert', emotional_anchor: 'Status', coi: 'ARR', next_follow_up: '2026-05-28', tasks: '[]' },
+        { id: 'L40', name: 'Mia', company: 'Iconic', deal_size: 12000, stage: 'Post-Discovery', call_type: 'Cold Outreach', emotional_anchor: 'Safety', coi: 'Burn', next_follow_up: '2026-05-29', tasks: '[]' },
+
+        { id: 'L41', name: 'James', company: 'Peak', deal_size: 50000, stage: 'Pitch Complete', call_type: 'Enterprise Committee', emotional_anchor: 'Wealth', coi: '$1M', next_follow_up: '2026-05-25', tasks: '[]' },
+        { id: 'L42', name: 'Robert', company: 'Core', deal_size: 35000, stage: 'Pitch Complete', call_type: 'Inbound Warm', emotional_anchor: 'Legacy', coi: 'Profit', next_follow_up: '2026-05-26', tasks: '[]' },
+        { id: 'L43', name: 'John', company: 'Elite', deal_size: 45000, stage: 'Pitch Complete', call_type: 'High-Status Expert', emotional_anchor: 'Power', coi: 'Share', next_follow_up: '2026-05-27', tasks: '[]' },
+        { id: 'L44', name: 'Michael', company: 'Global', deal_size: 25000, stage: 'Pitch Complete', call_type: 'Chronic Overthinker', emotional_anchor: 'Secure', coi: 'Audit', next_follow_up: '2026-05-28', tasks: '[]' },
+        { id: 'L45', name: 'William', company: 'Inter', deal_size: 30000, stage: 'Pitch Complete', call_type: 'Inbound Warm', emotional_anchor: 'Lead', coi: 'Growth', next_follow_up: '2026-05-29', tasks: '[]' },
+
+        { id: 'L46', name: 'David', company: 'Alpha', deal_size: 20000, stage: 'Active Negotiation', call_type: 'Budget Constrained', emotional_anchor: 'Control', coi: 'Waste', next_follow_up: '2026-05-25', tasks: '[]' },
+        { id: 'L47', name: 'Richard', company: 'Beta', deal_size: 15000, stage: 'Active Negotiation', call_type: 'Skeptical Technician', emotional_anchor: 'Simple', coi: 'Time', next_follow_up: '2026-05-26', tasks: '[]' },
+        { id: 'L48', name: 'Joseph', company: 'Gamma', deal_size: 18000, stage: 'Active Negotiation', call_type: 'Inbound Warm', emotional_anchor: 'Fast', coi: 'Market', next_follow_up: '2026-05-27', tasks: '[]' },
+        { id: 'L49', name: 'Thomas', company: 'Delta', deal_size: 22000, stage: 'Active Negotiation', call_type: 'Enterprise Committee', emotional_anchor: 'Strong', coi: 'Risk', next_follow_up: '2026-05-28', tasks: '[]' },
+        { id: 'L50', name: 'Charles', company: 'Epsilon', deal_size: 25000, stage: 'Active Negotiation', call_type: 'Chronic Overthinker', emotional_anchor: 'Ready', coi: 'Loss', next_follow_up: '2026-05-29', tasks: '[]' },
+
+        { id: 'L51', name: 'Christopher', company: 'Sigma', deal_size: 30000, stage: 'Pending Payment', call_type: 'Inbound Warm', emotional_anchor: 'Done', coi: 'ARR', next_follow_up: '2026-05-25', tasks: '[]' },
+        { id: 'L52', name: 'Matthew', company: 'Omega', deal_size: 20000, stage: 'Pending Payment', call_type: 'High-Status Expert', emotional_anchor: 'Finish', coi: 'Cash', next_follow_up: '2026-05-26', tasks: '[]' },
+        { id: 'L53', name: 'Anthony', company: 'Theta', deal_size: 15000, stage: 'Pending Payment', call_type: 'Window Shopper', emotional_anchor: 'Final', coi: 'Waste', next_follow_up: '2026-05-27', tasks: '[]' },
+        { id: 'L54', name: 'Mark', company: 'Iota', deal_size: 40000, stage: 'Pending Payment', call_type: 'Inbound Warm', emotional_anchor: 'Secure', coi: 'Safe', next_follow_up: '2026-05-28', tasks: '[]' },
+        { id: 'L55', name: 'Donald', company: 'Kappa', deal_size: 12000, stage: 'Pending Payment', call_type: 'Budget Constrained', emotional_anchor: 'Close', coi: 'Burn', next_follow_up: '2026-05-29', tasks: '[]' },
+
+        { id: 'L56', name: 'Steven', company: 'Lambda', deal_size: 50000, stage: 'Closed-Won', call_type: 'Inbound Warm', emotional_anchor: 'Value', amount_paid: 50000, closer_percentage: 10, payment_confirmed: true, talk_to_listen_ratio: 35, next_follow_up: '2026-05-25', tasks: '[]' },
+        { id: 'L57', name: 'Paul', company: 'Mu', deal_size: 35000, stage: 'Closed-Won', call_type: 'Hostile CEO', emotional_anchor: 'Relief', amount_paid: 35000, closer_percentage: 15, payment_confirmed: true, talk_to_listen_ratio: 28, next_follow_up: '2026-05-26', tasks: '[]' },
+        { id: 'L58', name: 'Andrew', company: 'Nu', deal_size: 45000, stage: 'Closed-Won', call_type: 'Inbound Warm', emotional_anchor: 'Win', amount_paid: 45000, closer_percentage: 10, payment_confirmed: true, talk_to_listen_ratio: 42, next_follow_up: '2026-05-27', tasks: '[]' },
+        { id: 'L59', name: 'Joshua', company: 'Xi', deal_size: 25000, stage: 'Closed-Won', call_type: 'Skeptical Technician', emotional_anchor: 'Trust', amount_paid: 25000, closer_percentage: 12, payment_confirmed: true, talk_to_listen_ratio: 33, next_follow_up: '2026-05-28', tasks: '[]' },
+        { id: 'L60', name: 'Kenneth', company: 'Omicron', deal_size: 30000, stage: 'Closed-Won', call_type: 'Inbound Warm', emotional_anchor: 'Partner', amount_paid: 30000, closer_percentage: 10, payment_confirmed: true, talk_to_listen_ratio: 31, next_follow_up: '2026-05-29', tasks: '[]' },
+
+        { id: 'L61', name: 'Kevin', company: 'Pi', deal_size: 20000, stage: 'Nurture / Long-Term', call_type: 'Chronic Overthinker', emotional_anchor: 'Wait', next_follow_up: '2026-09-25', tasks: '[]' },
+        { id: 'L62', name: 'Brian', company: 'Rho', deal_size: 15000, stage: 'Nurture / Long-Term', call_type: 'Warm', emotional_anchor: 'Budget', next_follow_up: '2026-10-26', tasks: '[]' },
+        { id: 'L63', name: 'George', company: 'Sigma J', deal_size: 18000, stage: 'Nurture / Long-Term', call_type: 'Window Shopper', emotional_anchor: 'Later', next_follow_up: '2026-11-27', tasks: '[]' },
+        { id: 'L64', name: 'Edward', company: 'Tau', deal_size: 22000, stage: 'Nurture / Long-Term', call_type: 'Cold Outreach', emotional_anchor: 'Timing', next_follow_up: '2026-12-28', tasks: '[]' },
+        { id: 'L65', name: 'Ronald', company: 'Upsilon', deal_size: 25000, stage: 'Nurture / Long-Term', call_type: 'Warm', emotional_anchor: 'Future', next_follow_up: '2027-01-29', tasks: '[]' },
+
+        // Final Batch of 35 more
+        { id: 'L66', name: 'Aria', company: 'CloudWorks', deal_size: 22000, stage: 'Discovery Scheduled', call_type: 'Inbound Warm', bleeding_neck: 'Growth Ceiling', emotional_anchor: 'Legacy', coi: '$5k/mo', future_identity: 'Expansionist', next_follow_up: '2026-06-01', tasks: '[]' },
+        { id: 'L67', name: 'Zane', company: 'NitroSoft', deal_size: 45000, stage: 'Post-Discovery', call_type: 'Hostile CEO', bleeding_neck: 'Efficiency gap', emotional_anchor: 'Market Domination', coi: 'Loss of share', future_identity: 'Unstoppable', next_follow_up: '2026-06-02', tasks: '[]' },
+        { id: 'L68', name: 'Luna', company: 'Solaris', deal_size: 15000, stage: 'Pitch Complete', call_type: 'Already Burned', bleeding_neck: 'Reliability', emotional_anchor: 'Safety', coi: 'High Churn', future_identity: 'Stable', next_follow_up: '2026-06-03', tasks: '[]' },
+        { id: 'L69', name: 'Kai', company: 'ForgeScale', deal_size: 31000, stage: 'Active Negotiation', call_type: 'Skeptical Technician', bleeding_neck: 'Manual Ops', emotional_anchor: 'Control', coi: 'Ops Burn', future_identity: 'Precise', next_follow_up: '2026-06-04', tasks: '[]' },
+        { id: 'L70', name: 'Nova', company: 'Aether', deal_size: 12000, stage: 'Pending Payment', call_type: 'Budget Constrained', bleeding_neck: 'Complexity', emotional_anchor: 'Simplicity', coi: 'Time waste', future_identity: 'Lean', next_follow_up: '2026-06-05', tasks: '[]' },
+        // ... adding more variety
+        { id: 'L71', name: 'Felix', company: 'Celo', deal_size: 55000, stage: 'Closed-Won', call_type: 'Inbound Warm', amount_paid: 55000, closer_percentage: 12, payment_confirmed: true, talk_to_listen_ratio: 30, next_follow_up: '2026-06-01', tasks: '[]' },
+        { id: 'L72', name: 'Sloane', company: 'Vesta', deal_size: 38000, stage: 'Closed-Won', call_type: 'Enterprise Committee', amount_paid: 38000, closer_percentage: 10, payment_confirmed: true, talk_to_listen_ratio: 45, next_follow_up: '2026-06-02', tasks: '[]' },
+        { id: 'L73', name: 'Atlas', company: 'Prism', deal_size: 28000, stage: 'Closed-Won', call_type: 'High-Status Expert', amount_paid: 28000, closer_percentage: 15, payment_confirmed: true, talk_to_listen_ratio: 25, next_follow_up: '2026-06-03', tasks: '[]' },
+        { id: 'L74', name: 'Juno', company: 'Echo', deal_size: 19000, stage: 'Closed-Won', call_type: 'Inbound Warm', amount_paid: 19000, closer_percentage: 10, payment_confirmed: true, talk_to_listen_ratio: 38, next_follow_up: '2026-06-04', tasks: '[]' },
+        { id: 'L75', name: 'Orion', company: 'Sentry', deal_size: 65000, stage: 'Closed-Won', call_type: 'Skeptical Technician', amount_paid: 65000, closer_percentage: 8, payment_confirmed: true, talk_to_listen_ratio: 29, next_follow_up: '2026-06-05', tasks: '[]' },
+        
+        { id: 'L76', name: 'Veda', company: 'Quantum', deal_size: 25000, stage: 'Discovery Scheduled', call_type: 'Window Shopper', next_follow_up: '2026-06-06', tasks: '[]' },
+        { id: 'L77', name: 'Rocco', company: 'Basix', deal_size: 14000, stage: 'Post-Discovery', call_type: 'Cold Outreach', next_follow_up: '2026-06-07', tasks: '[]' },
+        { id: 'L78', name: 'Lyra', company: 'Flux', deal_size: 52000, stage: 'Pitch Complete', call_type: 'Enterprise Committee', next_follow_up: '2026-06-08', tasks: '[]' },
+        { id: 'L79', name: 'Silas', company: 'Root', deal_size: 29000, stage: 'Active Negotiation', call_type: 'Already Burned', next_follow_up: '2026-06-09', tasks: '[]' },
+        { id: 'L80', name: 'Thea', company: 'Main', deal_size: 11000, stage: 'Pending Payment', call_type: 'Inbound Warm', next_follow_up: '2026-06-10', tasks: '[]' },
+
+        { id: 'L81', name: 'Milo', company: 'CoreX', deal_size: 33000, stage: 'Discovery Scheduled', call_type: 'Skeptical Technician', next_follow_up: '2026-06-11', tasks: '[]' },
+        { id: 'L82', name: 'Esme', company: 'Prime', deal_size: 26000, stage: 'Post-Discovery', call_type: 'High-Status Expert', next_follow_up: '2026-06-12', tasks: '[]' },
+        { id: 'L83', name: 'Bodhi', company: 'Scale', deal_size: 47000, stage: 'Pitch Complete', call_type: 'Hostile CEO', next_follow_up: '2026-06-13', tasks: '[]' },
+        { id: 'L84', name: 'Cora', company: 'Pulse', deal_size: 18000, stage: 'Active Negotiation', call_type: 'Inbound Warm', next_follow_up: '2026-06-14', tasks: '[]' },
+        { id: 'L85', name: 'Hugo', company: 'Apex', deal_size: 39000, stage: 'Pending Payment', call_type: 'Chronic Overthinker', next_follow_up: '2026-06-15', tasks: '[]' },
+
+        { id: 'L86', name: 'Remy', company: 'Swift', deal_size: 21000, stage: 'Discovery Scheduled', call_type: 'Already Burned', next_follow_up: '2026-06-16', tasks: '[]' },
+        { id: 'L87', name: 'Freya', company: 'Zen', deal_size: 58000, stage: 'Post-Discovery', call_type: 'Enterprise Committee', next_follow_up: '2026-06-17', tasks: '[]' },
+        { id: 'L88', name: 'Arlo', company: 'Rise', deal_size: 15500, stage: 'Pitch Complete', call_type: 'Window Shopper', next_follow_up: '2026-06-18', tasks: '[]' },
+        { id: 'L89', name: 'Poppy', company: 'Nest', deal_size: 44000, stage: 'Active Negotiation', call_type: 'High-Status Expert', next_follow_up: '2026-06-19', tasks: '[]' },
+        { id: 'L90', name: 'Otis', company: 'Blue', deal_size: 12500, stage: 'Pending Payment', call_type: 'Budget Constrained', next_follow_up: '2026-06-20', tasks: '[]' },
+
+        { id: 'L91', name: 'Willa', company: 'Flow', deal_size: 32000, stage: 'Discovery Scheduled', call_type: 'Inbound Warm', next_follow_up: '2026-06-21', tasks: '[]' },
+        { id: 'L92', name: 'Ezra', company: 'Spark', deal_size: 48000, stage: 'Post-Discovery', call_type: 'Skeptical Technician', next_follow_up: '2026-06-22', tasks: '[]' },
+        { id: 'L93', name: 'Tate', company: 'SwiftLine', deal_size: 17000, stage: 'Pitch Complete', call_type: 'Cold Outreach', next_follow_up: '2026-06-23', tasks: '[]' },
+        { id: 'L94', name: 'Cleo', company: 'Mint', deal_size: 62000, stage: 'Active Negotiation', call_type: 'Hostile CEO', next_follow_up: '2026-06-24', tasks: '[]' },
+        { id: 'L95', name: 'Jude', company: 'Nova', deal_size: 24000, stage: 'Pending Payment', call_type: 'Inbound Warm', next_follow_up: '2026-06-25', tasks: '[]' },
+
+        { id: 'L96', name: 'Indie', company: 'Glow', deal_size: 13000, stage: 'Nurture / Long-Term', call_type: 'Chronic Overthinker', next_follow_up: '2026-11-20', tasks: '[]' },
+        { id: 'L97', name: 'Bowie', company: 'Sky', deal_size: 41000, stage: 'Nurture / Long-Term', call_type: 'Already Burned', next_follow_up: '2026-12-21', tasks: '[]' },
+        { id: 'L98', name: 'Marlowe', company: 'Oak', deal_size: 27000, stage: 'Nurture / Long-Term', call_type: 'Enterprise Committee', next_follow_up: '2027-01-22', tasks: '[]' },
+        { id: 'L99', name: 'Ziggy', company: 'Base', deal_size: 35000, stage: 'Nurture / Long-Term', call_type: 'Window Shopper', next_follow_up: '2027-02-23', tasks: '[]' },
+        { id: 'L100', name: 'Pixie', company: 'Wild', deal_size: 18000, stage: 'Nurture / Long-Term', call_type: 'Cold Outreach', next_follow_up: '2027-03-24', tasks: '[]' },
       ];
-      for (const lead of mockLeads) {
+      for (const lead of mockLeads as any[]) {
         await sql`
-          INSERT INTO leads (id, name, company, deal_size, stage, call_type, bleeding_neck, emotional_anchor, coi, future_identity, budget_anchor, next_follow_up, notes, tasks)
-          VALUES (${lead.id}, ${lead.name}, ${lead.company}, ${lead.deal_size}, ${lead.stage}, ${lead.call_type}, ${lead.bleeding_neck}, ${lead.emotional_anchor}, ${lead.coi}, ${lead.future_identity}, ${lead.budget_anchor}, ${lead.next_follow_up}, ${lead.notes}, ${lead.tasks})
+          INSERT INTO leads (id, name, company, deal_size, stage, call_type, bleeding_neck, emotional_anchor, coi, future_identity, budget_anchor, next_follow_up, notes, tasks, closer_id, closer_percentage, amount_paid, payment_confirmed)
+          VALUES (${lead.id}, ${lead.name}, ${lead.company}, ${lead.deal_size}, ${lead.stage}, ${lead.call_type || ''}, ${lead.bleeding_neck || ''}, ${lead.emotional_anchor || ''}, ${lead.coi || ''}, ${lead.future_identity || ''}, ${lead.budget_anchor || ''}, ${lead.next_follow_up}, ${lead.notes || ''}, ${lead.tasks || '[]'}, ${lead.closer_id || ''}, ${lead.closer_percentage || 0}, ${lead.amount_paid || 0}, ${lead.payment_confirmed || false})
           ON CONFLICT (id) DO NOTHING
         `;
       }

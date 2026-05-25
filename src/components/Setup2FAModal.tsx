@@ -18,9 +18,18 @@ export default function Setup2FAModal({ onClose, onSuccess }: Setup2FAProps) {
 
   useEffect(() => {
     const generateToken = async () => {
-      // Mock for static app: Provide a dummy QR code
-      setQrCode('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIj48cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2UzZThlOCIvPjx0ZXh0IHg9Ijc1IiB5PSI3NSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zNmVtIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiI+UVIgQ29kZTwvdGV4dD48L3N2Zz4=');
-      setSecret('YOUR_MOCK_SECRET_KEY');
+      try {
+        const response = await fetch('/api/auth/2fa/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'user@example.com' }) // Replace with actual user email
+        });
+        const data = await response.json();
+        setQrCode(data.qrCodeDataUrl);
+        setSecret(data.secret);
+      } catch (err) {
+        setError('Failed to generate 2FA setup');
+      }
     };
     generateToken();
   }, []);
@@ -33,15 +42,20 @@ export default function Setup2FAModal({ onClose, onSuccess }: Setup2FAProps) {
     setError('');
 
     try {
-      // Simulate validation (accept any token of 6 digits for the static demo)
-      if (token.length >= 6) {
-        localStorage.setItem('is2FAEnabled', 'true');
-        onSuccess();
-      } else {
-        setError('Invalid 2FA token');
+      const response = await fetch('/api/auth/2fa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, token, email: 'user@example.com' }) // Replace with actual user email
+      });
+      
+      if (!response.ok) {
+        throw new Error('Invalid 2FA token');
       }
+      
+      localStorage.setItem('is2FAEnabled', 'true');
+      onSuccess();
     } catch (err) {
-      setError('An error occurred during verification');
+      setError('Invalid 2FA token');
     } finally {
       setLoading(false);
     }
