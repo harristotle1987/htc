@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import React, { useState, useEffect } from 'react';
 
 export default function ActivityLogs() {
@@ -5,7 +6,7 @@ export default function ActivityLogs() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin/logs')
+    apiFetch('/api/admin/logs')
       .then(res => res.json())
       .then(data => {
         setLogs(data.logs || []);

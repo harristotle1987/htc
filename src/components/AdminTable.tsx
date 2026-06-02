@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import React, { useEffect, useState } from 'react';
 
 interface User {
@@ -13,7 +14,7 @@ export default function AdminTable() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin/users')
+    apiFetch('/api/admin/users')
       .then(res => res.json())
       .then(data => {
         setUsers(data.users || []);

@@ -1,22 +1,14 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import { getSheetsDoc } from './src/lib/googleSheets';
 import { initDb, sql } from './src/lib/neon';
 import dotenv from 'dotenv';
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
-import { OAuth2Client } from 'google-auth-library';
 
 dotenv.config();
-
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://ais-dev-rsuujetimibenrq4xxjyb2-69440511109.europe-west2.run.app/api/auth/callback/google';
-
-const oauth2Client = new OAuth2Client(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
 
 const PORT = 3000;
 const app = express();
@@ -97,47 +89,40 @@ function runInBackground(promise: Promise<any>, description: string) {
   promise.catch(err => console.error(`Background task failed: ${description}`, err));
 }
 
-// OAuth Callback Handler
-app.get('/api/auth/callback/google', async (req, res) => {
-  const { code, error } = req.query;
 
-  if (error) {
-    console.error('OAuth callback error:', error);
-    return res.redirect('/settings?auth_error=true');
+// API Routes
+// Auth Middleware
+const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const email = req.headers['x-user-email'] as string;
+  
+  if (!email) {
+    // Unprotected paths
+    const bypassPaths = ['/api/auth', '/api/signup', '/api/login', '/api/users', '/api/prices', '/api/webhooks/monnify', '/api/config/monnify'];
+    if (bypassPaths.some(p => req.originalUrl.startsWith(p))) {
+      return next();
+    }
+    return res.status(401).json({ error: 'Unauthorized' });
   }
-
-  if (!code) {
-    return res.redirect('/settings?auth_error=missing_code');
-  }
-
+  
   try {
-    const { tokens } = await oauth2Client.getToken(code as string);
-    oauth2Client.setCredentials(tokens);
-
-    // Save tokens and update sheet connection flag
-    const document = await getSheetsDoc();
-    let sheet = document?.sheetsByTitle['Configuration'];
+    const user = await sql`SELECT is_admin FROM users WHERE email = ${email}`;
+    const isAdmin = (user && user.length > 0 && user[0].is_admin) || email === process.env.ADMIN_SOVEREIGN_EMAIL;
+    (req as any).userEmail = email;
+    (req as any).isAdmin = isAdmin;
     
-    if (!sheet) {
-        sheet = await document!.addSheet({ title: 'Configuration', headerValues: ['Key', 'Value'] });
+    // Protect admin routes
+    if (req.path.startsWith('/admin') && !isAdmin) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
     
-    const rows = await sheet.getRows();
-    let configRow = rows.find(r => r.get('Key') === 'GoogleCalendarConnected');
-    
-    if (configRow) {
-        configRow.set('Value', 'Connected');
-        await configRow.save();
-    } else {
-        await sheet.addRow({ Key: 'GoogleCalendarConnected', Value: 'Connected' });
-    }
-
-    res.redirect('/settings?auth_success=true');
+    next();
   } catch (err) {
-    console.error('OAuth token exchange failed:', err);
-    res.redirect('/settings?auth_error=token_exchange_failed');
+    console.error('Auth error:', err);
+    res.status(500).json({ error: 'Auth failed' });
   }
-});
+};
+
+app.use('/api', requireAuth);
 
 app.post('/api/auth/2fa/generate', async (req, res) => {
   const { email } = req.body;
@@ -167,7 +152,12 @@ app.post('/api/auth/2fa/verify', async (req, res) => {
 
 app.get('/api/leads', async (req, res) => {
   try {
-    const dbLeads = await sql`SELECT * FROM leads ORDER BY id ASC`;
+    let dbLeads;
+    if ((req as any).isAdmin) {
+      dbLeads = await sql`SELECT * FROM leads ORDER BY id ASC`;
+    } else {
+      dbLeads = await sql`SELECT * FROM leads WHERE user_email = ${(req as any).userEmail} ORDER BY id ASC`;
+    }
     const leads = dbLeads ? dbLeads.map(mapPostgresLead) : [];
     res.json({ leads });
   } catch (dbErr) {
@@ -176,102 +166,51 @@ app.get('/api/leads', async (req, res) => {
   }
 });
 
-// GET /api/metrics - Fetch from 'Metrics_Dashboard'
+// GET /api/metrics - Fetch from Neon Postgres
 app.get('/api/metrics', async (req, res) => {
-  let metrics: any[] = [];
   try {
-    const dbMetrics = await sql`SELECT * FROM metrics ORDER BY id ASC`;
-    if (dbMetrics && dbMetrics.length > 0) {
-      metrics = dbMetrics.map(mapPostgresMetric);
+    let dbMetrics;
+    if ((req as any).isAdmin) {
+      dbMetrics = await sql`SELECT * FROM metrics ORDER BY id ASC`;
+    } else {
+      dbMetrics = await sql`SELECT * FROM metrics WHERE user_email = ${(req as any).userEmail} ORDER BY id ASC`;
+    }
+    const metrics = dbMetrics ? dbMetrics.map(mapPostgresMetric) : [];
+    
+    if (metrics.length === 0) {
+      res.json({
+        setupRequired: true,
+        metrics: [
+          { 
+            id: '1', totalCalls: '100', shows: '80', closes: '20', totalRevenue: '$150,000', refunds: '$0',
+            setToCloseRatio: '25%', pipelineVelocity: '14 Days', talkToListenRatio: '28%', showToCloseRate: '0%', averageDealSize: '$0', cashCollected: '$0'
+          }
+        ]
+      });
+    } else {
+      res.json({ metrics });
     }
   } catch (dbErr) {
     console.error('Failed to fetch metrics from Neon Postgres:', dbErr);
-  }
-
-  if (metrics.length === 0) {
-    try {
-      const document = await getSheetsDoc();
-      const sheet = document?.sheetsByTitle['Metrics_Dashboard'];
-      if (sheet) {
-        const rows = await sheet.getRows();
-        metrics = rows.map(row => ({
-          id: row.get('ID'),
-          totalCalls: row.get('Total_Calls') || '0',
-          shows: row.get('Shows') || '0',
-          closes: row.get('Closes') || '0',
-          totalRevenue: row.get('Total_Revenue') || '$0',
-          refunds: row.get('Refunds') || '$0',
-          setToCloseRatio: row.get('Set_to_Close_Ratio') || '0%',
-          pipelineVelocity: row.get('Pipeline_Velocity') || '0 Days',
-          talkToListenRatio: row.get('Talk_to_Listen_Ratio') || '0%',
-          showToCloseRate: row.get('Show_to_Close_Rate') || '0%',
-          averageDealSize: row.get('Average_Deal_Size') || '$0',
-          cashCollected: row.get('Cash_Collected') || '$0'
-        }));
-
-        if (metrics.length > 0) {
-          console.log(`Syncing ${metrics.length} metrics to Neon Postgres...`);
-          for (const metric of metrics) {
-            try {
-              await sql`
-                INSERT INTO metrics (
-                  id, total_calls, shows, closes, total_revenue, refunds,
-                  set_to_close_ratio, pipeline_velocity, talk_to_listen_ratio,
-                  show_to_close_rate, average_deal_size, cash_collected
-                ) VALUES (${metric.id}, ${metric.totalCalls}, ${metric.shows}, ${metric.closes}, ${metric.totalRevenue}, ${metric.refunds}, ${metric.setToCloseRatio}, ${metric.pipelineVelocity}, ${metric.talkToListenRatio}, ${metric.showToCloseRate}, ${metric.averageDealSize}, ${metric.cashCollected})
-                ON CONFLICT (id) DO UPDATE SET
-                  total_calls = EXCLUDED.total_calls,
-                  shows = EXCLUDED.shows,
-                  closes = EXCLUDED.closes,
-                  total_revenue = EXCLUDED.total_revenue,
-                  refunds = EXCLUDED.refunds,
-                  set_to_close_ratio = EXCLUDED.set_to_close_ratio,
-                  pipeline_velocity = EXCLUDED.pipeline_velocity,
-                  talk_to_listen_ratio = EXCLUDED.talk_to_listen_ratio,
-                  show_to_close_rate = EXCLUDED.show_to_close_rate,
-                  average_deal_size = EXCLUDED.average_deal_size,
-                  cash_collected = EXCLUDED.cash_collected
-              `;
-            } catch (insErr) {
-              console.error(`Failed to sync metric row ${metric.id} to Neon Postgres:`, insErr);
-            }
-          }
-        }
-      }
-    } catch (sheetErr) {
-      console.error('Failed to load metrics from Google Sheets:', sheetErr);
-    }
-  }
-
-  if (metrics.length === 0) {
-    res.json({
-      setupRequired: true,
-      metrics: [
-        { 
-          id: '1', totalCalls: '100', shows: '80', closes: '20', totalRevenue: '$150,000', refunds: '$0',
-          setToCloseRatio: '25%', pipelineVelocity: '14 Days', talkToListenRatio: '28%', showToCloseRate: '0%', averageDealSize: '$0', cashCollected: '$0'
-        }
-      ]
-    });
-  } else {
-    res.json({ metrics });
+    res.status(500).json({ error: 'Failed to fetch metrics' });
   }
 });
 
 // POST /api/metrics - Create metric record
 app.post('/api/metrics', async (req, res) => {
   const id = Date.now().toString();
+  const userEmail = (req as any).userEmail;
   const { totalCalls, shows, closes, totalRevenue, refunds, setToCloseRatio, pipelineVelocity, talkToListenRatio, showToCloseRate, averageDealSize, cashCollected } = req.body;
 
-  // 1. Save to Neon Postgres
   try {
     await sql`
       INSERT INTO metrics (
-        id, total_calls, shows, closes, total_revenue, refunds,
+        id, user_email, total_calls, shows, closes, total_revenue, refunds,
         set_to_close_ratio, pipeline_velocity, talk_to_listen_ratio,
         show_to_close_rate, average_deal_size, cash_collected
       ) VALUES (
         ${id}, 
+        ${userEmail || ''},
         ${totalCalls || '0'}, 
         ${shows || '0'}, 
         ${closes || '0'}, 
@@ -286,34 +225,11 @@ app.post('/api/metrics', async (req, res) => {
       )
     `;
     console.log(`Metric ${id} created in Neon Postgres.`);
+    res.json({ success: true, id });
   } catch (pgErr) {
     console.error('Failed to insert metric in Neon Postgres:', pgErr);
+    res.status(500).json({ error: 'Failed to create metric' });
   }
-
-  // 2. Backup to Google Sheets
-  runInBackground((async () => {
-    const document = await getSheetsDoc();
-    const sheet = document?.sheetsByTitle['Metrics_Dashboard'];
-    if (sheet) {
-      await sheet.addRow({
-        ID: id,
-        Total_Calls: totalCalls || '0',
-        Shows: shows || '0',
-        Closes: closes || '0',
-        Total_Revenue: totalRevenue || '$0',
-        Refunds: refunds || '$0',
-        Set_to_Close_Ratio: setToCloseRatio || '0%',
-        Pipeline_Velocity: pipelineVelocity || '0 Days',
-        Talk_to_Listen_Ratio: talkToListenRatio || '0%',
-        Show_to_Close_Rate: showToCloseRate || '0%',
-        Average_Deal_Size: averageDealSize || '$0',
-        Cash_Collected: cashCollected || '$0'
-      });
-      console.log(`Metric ${id} backed up to Google Sheets.`);
-    }
-  })(), `Backup metric ${id} to Google Sheets`);
-
-  res.json({ success: true, id });
 });
 
 // PATCH /api/metrics/:id - Update metric record
@@ -321,7 +237,6 @@ app.patch('/api/metrics/:id', async (req, res) => {
   const id = req.params.id;
   const updates = req.body;
 
-  // 1. Update Neon Postgres
   try {
     const currentMetrics = await sql`SELECT * FROM metrics WHERE id = ${id}`;
     if (currentMetrics && currentMetrics.length > 0) {
@@ -356,85 +271,46 @@ app.patch('/api/metrics/:id', async (req, res) => {
         WHERE id = ${id}
       `;
       console.log(`Metric ${id} updated in Neon Postgres.`);
+      res.json({ success: true });
+    } else {
+        res.status(404).json({ error: 'Metric not found' });
     }
   } catch (pgErr) {
     console.error('Failed to update metric in Neon Postgres:', pgErr);
+    res.status(500).json({ error: 'Failed to update metric' });
   }
-
-  // 2. Backup to Google Sheets
-  runInBackground((async () => {
-    const document = await getSheetsDoc();
-    const sheet = document?.sheetsByTitle['Metrics_Dashboard'];
-    if (sheet) {
-      const rows = await sheet.getRows();
-      const row = rows.find(r => r.get('ID') === id);
-      if (row) {
-        if (updates.totalCalls !== undefined) row.set('Total_Calls', updates.totalCalls);
-        if (updates.shows !== undefined) row.set('Shows', updates.shows);
-        if (updates.closes !== undefined) row.set('Closes', updates.closes);
-        if (updates.totalRevenue !== undefined) row.set('Total_Revenue', updates.totalRevenue);
-        if (updates.refunds !== undefined) row.set('Refunds', updates.refunds);
-        if (updates.setToCloseRatio !== undefined) row.set('Set_to_Close_Ratio', updates.setToCloseRatio);
-        if (updates.pipelineVelocity !== undefined) row.set('Pipeline_Velocity', updates.pipelineVelocity);
-        if (updates.talkToListenRatio !== undefined) row.set('Talk_to_Listen_Ratio', updates.talkToListenRatio);
-        if (updates.showToCloseRate !== undefined) row.set('Show_to_Close_Rate', updates.showToCloseRate);
-        if (updates.averageDealSize !== undefined) row.set('Average_Deal_Size', updates.averageDealSize);
-        if (updates.cashCollected !== undefined) row.set('Cash_Collected', updates.cashCollected);
-        await row.save();
-        console.log(`Metric ${id} backup updated in Google Sheets.`);
-      }
-    }
-  })(), `Update metric ${id} backup in Google Sheets`);
-
-  res.json({ success: true });
 });
 
 // DELETE /api/metrics/:id - Delete metric record
 app.delete('/api/metrics/:id', async (req, res) => {
   const id = req.params.id;
 
-  // 1. Delete from Neon Postgres
   try {
     await sql`DELETE FROM metrics WHERE id = ${id}`;
     console.log(`Metric ${id} deleted from Neon Postgres.`);
+    res.json({ success: true });
   } catch (pgErr) {
     console.error('Failed to delete metric from Neon Postgres:', pgErr);
+    res.status(500).json({ error: 'Failed to delete metric' });
   }
-
-  // 2. Delete from Google Sheets
-  try {
-    const document = await getSheetsDoc();
-    const sheet = document?.sheetsByTitle['Metrics_Dashboard'];
-    if (sheet) {
-      const rows = await sheet.getRows();
-      const row = rows.find(r => r.get('ID') === id);
-      if (row) {
-        await row.delete();
-        console.log(`Metric ${id} backup deleted from Google Sheets.`);
-      }
-    }
-  } catch (sheetErr) {
-    console.error('Failed to delete metric backup from Google Sheets:', sheetErr);
-  }
-
-  res.json({ success: true });
 });
 
 
 // POST /api/leads - Create a new lead
 app.post('/api/leads', async (req, res) => {
   const id = `L${Date.now()}`;
+  const userEmail = (req as any).userEmail;
   const { name, company, dealSize, stage, callType, bleedingNeck, emotionalAnchor, coi, futureIdentity, budgetAnchor, nextFollowUp, notes, tasks, closerId, closerPercentage, amountPaid, paymentConfirmed, talkToListenRatio } = req.body;
 
-  // 1. Write to Neon Postgres
   try {
     await sql`
       INSERT INTO leads (
-        id, name, company, deal_size, stage, call_type, bleeding_neck, 
+        id, user_email, name, company, deal_size, stage, call_type, bleeding_neck, 
         emotional_anchor, coi, future_identity, budget_anchor, next_follow_up, notes, tasks,
         closer_id, closer_percentage, amount_paid, payment_confirmed, talk_to_listen_ratio
       ) VALUES (
         ${id}, 
+        ${userEmail || ''},
         ${name || ''}, 
         ${company || ''}, 
         ${dealSize || 0}, 
@@ -456,134 +332,378 @@ app.post('/api/leads', async (req, res) => {
       )
     `;
     console.log(`Lead ${id} saved to Neon Postgres.`);
+    res.json({ success: true, id });
+    io.emit('lead_created', { 
+        id, 
+        name, 
+        company, 
+        dealSize, 
+        stage, 
+        callType, 
+        bleedingNeck, 
+        emotionalAnchor, 
+        coi, 
+        futureIdentity, 
+        budgetAnchor, 
+        nextFollowUp, 
+        notes, 
+        tasks
+      });
   } catch (pgErr) {
     console.error('Failed to insert lead into Neon Postgres:', pgErr);
+    res.status(500).json({ error: 'Failed to create lead' });
   }
-
-  // 2. Write to Google Sheets
-  try {
-    const document = await getSheetsDoc();
-    const sheet = document?.sheetsByTitle['Leads_Pipeline'];
-    if (sheet) {
-      await sheet.addRow({
-        ID: id,
-        Name: name || '',
-        Company: company || '',
-        Deal_Size: dealSize || '',
-        Stage: stage || 'Discovery Scheduled',
-        Call_Type: callType || '',
-        Bleeding_Neck: bleedingNeck || '',
-        Emotional_Anchor: emotionalAnchor || '',
-        Cost_of_Inaction: coi || '',
-        Future_Identity: futureIdentity || '',
-        Budget_Anchor: budgetAnchor || '',
-        Next_Follow_Up_Date: nextFollowUp || '',
-        Notes: notes || '',
-        Tasks: tasks ? JSON.stringify(tasks) : '[]'
-      });
-      console.log(`Lead ${id} backed up to Google Sheets.`);
-    }
-  } catch (sheetErr) {
-    console.error('Failed to backup lead to Google Sheets:', sheetErr);
-  }
-
-  res.json({ success: true, id });
-  io.emit('lead_created', { 
-    id, 
-    name: name || '',
-    company: company || '',
-    dealSize: dealSize || 0,
-    stage: stage || 'Discovery Scheduled',
-    callType: callType || '',
-    bleedingNeck: bleedingNeck || '',
-    emotionalAnchor: emotionalAnchor || '',
-    coi: coi || '',
-    futureIdentity: futureIdentity || '',
-    budgetAnchor: budgetAnchor || '',
-    nextFollowUp: nextFollowUp || '',
-    notes: notes || ''
-  });
 });
 
-// POST /api/signup - Store new user in Google Sheets
+import bcrypt from 'bcryptjs';
+
+// POST /api/signup - Store new user in Postgres
 app.post('/api/signup', async (req, res) => {
-  const { name, email, phone } = req.body;
-  if (!name || !email || !phone) {
+  const { name, email, phone, password } = req.body;
+  if (!name || !email || !password) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
-    const document = await getSheetsDoc();
-    const sheet = document?.sheetsByTitle['Users'];
-    if (sheet) {
-      await sheet.addRow({
-        Name: name,
-        Email: email,
-        Phone: phone,
-        Timestamp: new Date().toISOString(),
-        Subscription: 'free'
-      });
-      
-      // Also write to Neon Postgres
-      const userCount = await sql`SELECT count(*) FROM users`;
-      const isAdmin = parseInt(userCount[0].count) === 0;
-      await sql`
-        INSERT INTO users (id, name, email, phone, subscription, is_admin)
-        VALUES (${Date.now().toString()}, ${name}, ${email}, ${phone}, 'free', ${isAdmin})
-      `;
-
-      console.log(`User ${email} signed up and saved to Sheets and Postgres (isAdmin: ${isAdmin}).`);
-      return res.json({ success: true });
-    } else {
-      return res.status(500).json({ error: 'Users sheet not found' });
+    const existing = await sql`SELECT * FROM users WHERE email = ${email}`;
+    if (existing && existing.length > 0) {
+      return res.status(400).json({ error: 'auth/email-already-in-use' });
     }
+
+    const userCount = await sql`SELECT count(*) FROM users`;
+    const isAdmin = parseInt(userCount[0].count) === 0;
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(password, salt);
+    
+    await sql`
+        INSERT INTO users (id, name, email, phone, subscription, is_admin, password_hash)
+        VALUES (${Date.now().toString()}, ${name}, ${email}, ${phone || ''}, 'unassigned', ${isAdmin}, ${hash})
+    `;
+
+    console.log(`User ${email} signed up and saved to Postgres (isAdmin: ${isAdmin}).`);
+    return res.json({ success: true });
   } catch (error) {
-    console.error('Error saving user to Sheets:', error);
+    console.error('Error saving user to Postgres:', error);
     return res.status(500).json({ error: 'Failed to save signup' });
   }
 });
 
-// GET /api/subscription/:email - Check user subscription status from Google Sheets
+// POST /api/login - Authenticate user via Postgres
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Missing required fields' });
+
+  try {
+    const users = await sql`SELECT * FROM users WHERE email = ${email}`;
+    if (!users || users.length === 0) return res.status(401).json({ error: 'Invalid credentials' });
+    
+    const user = users[0];
+    if (!user.password_hash) {
+      // First time login for existing user after password feature added - auto-set password
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash(password, salt);
+      await sql`UPDATE users SET password_hash = ${hash} WHERE email = ${email}`;
+    } else {
+      const isMatch = await bcrypt.compare(password, user.password_hash);
+      if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    return res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, isAdmin: user.is_admin } });
+  } catch (error) {
+    console.error('Error logging in:', error);
+    return res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// GET /api/users/:email - Get user details
+app.get('/api/users/:email', async (req, res) => {
+  const { email } = req.params;
+  try {
+    const users = await sql`SELECT * FROM users WHERE email = ${email}`;
+    if (users && users.length > 0) {
+      const user = users[0];
+      return res.json({ 
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          subscription: user.subscription || 'free',
+          subscriptionExpiresAt: user.subscription_expires_at,
+          isAdmin: !!user.is_admin,
+          avatarUrl: user.avatar_url,
+          lastPage: user.last_page
+        } 
+      });
+    } else {
+      // Auto-create missing user record (might be existing Firebase user backing into Postgres)
+      const userCount = await sql`SELECT count(*) FROM users`;
+      const isAdmin = parseInt(userCount[0].count) === 0;
+      const newId = Date.now().toString();
+      await sql`
+        INSERT INTO users (id, name, email, phone, subscription, is_admin, last_page)
+        VALUES (${newId}, 'Admin User', ${email}, '', 'unassigned', ${isAdmin}, 'pipeline')
+      `;
+      return res.json({
+        user: {
+          id: newId,
+          name: 'Admin User',
+          email: email,
+          phone: '',
+          subscription: 'unassigned',
+          subscriptionExpiresAt: null,
+          isAdmin: isAdmin,
+          avatarUrl: '',
+          lastPage: 'pipeline'
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
+// PATCH /api/users/:email - Update user details
+app.patch('/api/users/:email', async (req, res) => {
+  console.log('PATCH /api/users/:email', req.params.email, req.body);
+  const { email } = req.params;
+  const updates = req.body;
+  try {
+    const users = await sql`SELECT * FROM users WHERE email = ${email}`;
+    console.log('User query result:', users);
+    if (!users || users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // allow partial updates
+    const current = users[0];
+    const name = updates.name !== undefined ? updates.name : (current.name ?? null);
+    const phone = updates.phone !== undefined ? updates.phone : (current.phone ?? null);
+    const avatarUrl = updates.avatarUrl !== undefined ? updates.avatarUrl : (current.avatar_url ?? null);
+    const subscription = updates.subscription !== undefined ? updates.subscription : (current.subscription ?? null);
+    const paystackRef = updates.paystack_reference !== undefined ? updates.paystack_reference : (current.paystack_reference ?? null);
+    const monnifyRef = updates.monnify_reference !== undefined ? updates.monnify_reference : (current.monnify_reference ?? null);
+    const lastPage = updates.lastPage !== undefined ? updates.lastPage : (current.last_page ?? null);
+    
+    let subscriptionExpiresAt = current.subscription_expires_at ?? null;
+    if (updates.subscription && updates.subscription !== 'free' && updates.subscription !== 'unassigned' && updates.billing_cycle) {
+       const expiration = new Date();
+       if (updates.billing_cycle === 'monthly') expiration.setMonth(expiration.getMonth() + 1);
+       if (updates.billing_cycle === 'quarterly') expiration.setMonth(expiration.getMonth() + 3);
+       if (updates.billing_cycle === 'annually') expiration.setFullYear(expiration.getFullYear() + 1);
+       subscriptionExpiresAt = expiration.toISOString();
+    } else if (updates.subscription === 'free' || updates.subscription === 'unassigned') {
+       subscriptionExpiresAt = null;
+    }
+
+    let passHash = current.password_hash;
+    if (updates.password) {
+        const salt = await bcrypt.genSalt(10);
+        passHash = await bcrypt.hash(updates.password, salt);
+    }
+
+    await sql`
+      UPDATE users SET 
+        name = ${name},
+        phone = ${phone},
+        avatar_url = ${avatarUrl},
+        password_hash = ${passHash},
+        subscription = ${subscription},
+        paystack_reference = ${paystackRef},
+        monnify_reference = ${monnifyRef},
+        last_page = ${lastPage},
+        subscription_expires_at = ${subscriptionExpiresAt}
+      WHERE email = ${email}
+    `;
+
+    if (updates.monnify_reference && updates.amount) {
+      await sql`
+        INSERT INTO payments (user_email, amount, reference, tier)
+        VALUES (${email}, ${updates.amount}, ${updates.monnify_reference}, ${updates.subscription})
+      `;
+    } else if (updates.paystack_reference && updates.amount) {
+      await sql`
+        INSERT INTO payments (user_email, amount, reference, tier)
+        VALUES (${email}, ${updates.amount}, ${updates.paystack_reference}, ${updates.subscription})
+      `;
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+// GET /api/payments/:email - Get payment history
+app.get('/api/payments/:email', async (req, res) => {
+  const { email } = req.params;
+  try {
+    const payments = await sql`SELECT * FROM payments WHERE user_email = ${email} ORDER BY created_at DESC`;
+    res.json({ payments: payments.map(p => ({
+      id: p.id,
+      amount: p.amount,
+      reference: p.reference,
+      tier: p.tier,
+      date: p.created_at
+    })) });
+  } catch (error) {
+    console.error('Error fetching payments:', error);
+    res.status(500).json({ error: 'Failed to fetch payments' });
+  }
+});
+
+// POST /api/webhooks/monnify - Webhook endpoint for Monnify events
+app.post('/api/webhooks/monnify', express.json(), async (req, res) => {
+  const monnifySignature = req.headers['monnify-signature'];
+  const requestBody = req.body;
+  
+  console.log('Received Monnify webhook:', requestBody);
+  console.log('Monnify Signature:', monnifySignature);
+  
+  // Example of how to verify using crypto
+  // import crypto from 'crypto';
+  // const computeHash = crypto.createHmac('sha512', process.env.MONNIFY_SECRET_KEY || '').update(JSON.stringify(requestBody)).digest('hex');
+  // if (computeHash !== monnifySignature) return res.status(401).send('Unauthorized');
+  
+  const { eventType, eventData } = requestBody;
+  
+  // Here you can handle various event Types like 'SUCCESSFUL_TRANSACTION', 'REFUND_COMPLETED', 'DISBURSEMENT_SUCCESSFUL'
+  if (eventType === 'SUCCESSFUL_TRANSACTION') {
+    const { customer, paymentReference, paymentStatus, amount } = eventData || {};
+    console.log(`Webhook: Transaction successful for ${customer?.email}, ref: ${paymentReference}, status: ${paymentStatus}`);
+    
+    // You could update your database records here to reflect the successful payment asynchronously
+  }
+  
+  res.status(200).send('Webhook received successfully');
+});
+
+// GET /api/subscription/:email - Check user subscription status from Postgres
 app.get('/api/subscription/:email', async (req, res) => {
   const { email } = req.params;
   try {
-    const document = await getSheetsDoc();
-    const sheet = document?.sheetsByTitle['Users'];
-    if (sheet) {
-      const rows = await sheet.getRows();
-      const user = rows.find(r => r.get('Email') === email);
-      if (user) {
-        return res.json({ tier: user.get('Subscription') || 'free' });
-      }
-      return res.json({ tier: 'free' });
+    const users = await sql`SELECT subscription FROM users WHERE email = ${email}`;
+    if (users && users.length > 0) {
+        return res.json({ tier: users[0].subscription || 'free' });
     }
-    return res.status(500).json({ error: 'Users sheet not found' });
+    return res.json({ tier: 'free' });
   } catch (error) {
     console.error('Error fetching subscription:', error);
     return res.status(500).json({ error: 'Failed to fetch subscription' });
   }
 });
 
+// DELETE /api/admin/users/:email - Delete user details
+app.delete('/api/admin/users/:email', async (req, res) => {
+  const { email } = req.params;
+  try {
+    await sql`DELETE FROM users WHERE email = ${email}`;
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
 // GET /api/admin/users
 app.get('/api/admin/users', async (req, res) => {
   try {
-    const document = await getSheetsDoc();
-    const sheet = document?.sheetsByTitle['Users'];
-    const sheetUsers = sheet ? (await sheet.getRows()).map(row => ({
-      email: row.get('Email'),
-      name: row.get('Name'),
-      phone: row.get('Phone'),
-      subscription: row.get('Subscription') || 'free',
-      signupDate: row.get('Timestamp')
-    })) : [];
-
     const dbUsers = await sql`SELECT * FROM users`;
-    
-    // Merge logic: For simplicity, just return sheet users
-    res.json({ users: sheetUsers });
+    res.json({ users: dbUsers.map(u => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      phone: u.phone,
+      subscription: u.subscription || 'free',
+      avatarUrl: u.avatar_url,
+      signupDate: u.signup_date,
+    })) });
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// GET /api/prices
+app.get('/api/prices', async (req, res) => {
+  try {
+    const prices = await sql`SELECT * FROM tier_prices`;
+    const priceMap = prices.reduce((acc: any, p: any) => { 
+      acc[p.tier] = {
+        monthly: Number(p.price_monthly ?? p.price),
+        quarterly: Number(p.price_quarterly ?? (p.price * 3 * 0.9)),
+        annually: Number(p.price_annually ?? (p.price * 12 * 0.8)),
+      }; 
+      return acc; 
+    }, {});
+    res.json({
+        ...({
+            architect: { monthly: 6, quarterly: 16.2, annually: 57.6 },
+            syndicate: { monthly: 16, quarterly: 43.2, annually: 153.6 }
+        }),
+        ...priceMap
+    });
+  } catch (error) {
+    console.error('Error fetching prices:', error);
+    res.json({ 
+      architect: { monthly: 6, quarterly: 16.2, annually: 57.6 }, 
+      syndicate: { monthly: 16, quarterly: 43.2, annually: 153.6 } 
+    });
+  }
+});
+
+// GET /api/config/monnify
+app.get('/api/config/monnify', (req, res) => {
+  res.json({
+    apiKey: process.env.VITE_MONNIFY_API_KEY || process.env.MONNIFY_API_KEY || 'MK_TEST_5BQALXXL2N',
+    contractCode: process.env.VITE_MONNIFY_CONTRACT_CODE || process.env.MONNIFY_CONTRACT_CODE || '6732385923',
+  });
+});
+
+
+// POST /api/admin/prices
+app.post('/api/admin/prices', async (req, res) => {
+  if (!(req as any).isAdmin) return res.status(403).json({ error: 'Forbidden' });
+  const { architect, syndicate } = req.body;
+  try {
+    if (architect) {
+      await sql`UPDATE tier_prices SET 
+        price = ${architect.monthly}, price_monthly = ${architect.monthly}, 
+        price_quarterly = ${architect.quarterly}, price_annually = ${architect.annually} 
+        WHERE tier = 'architect'`;
+    }
+    if (syndicate) {
+      await sql`UPDATE tier_prices SET 
+        price = ${syndicate.monthly}, price_monthly = ${syndicate.monthly}, 
+        price_quarterly = ${syndicate.quarterly}, price_annually = ${syndicate.annually} 
+        WHERE tier = 'syndicate'`;
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating prices:', error);
+    res.status(500).json({ error: 'Failed to update prices' });
+  }
+});
+
+// GET /api/admin/system/health - Get System/API Status
+app.get('/api/admin/system/health', async (req, res) => {
+  try {
+    const isDbConnected = !!(await sql`SELECT 1`);
+    const status = {
+      database: isDbConnected ? 'Connected' : 'No Connection',
+      monnifyGateway: process.env.MONNIFY_SECRET_KEY ? 'Connected' : 'No Connection',
+      monnifyContractCode: process.env.MONNIFY_CONTRACT_CODE ? 'Connected' : 'No Connection',
+      environment: process.env.NODE_ENV || 'development'
+    };
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ 
+      database: 'No Connection', 
+      monnifyGateway: 'Unknown', 
+      error: (err as any).message 
+    });
   }
 });
 
@@ -609,12 +729,13 @@ app.post('/api/leads/import', async (req, res) => {
       await sql`
         INSERT INTO leads (
           id, name, company, deal_size, stage, call_type, bleeding_neck, 
-          emotional_anchor, coi, future_identity, budget_anchor, next_follow_up, notes
+          emotional_anchor, coi, future_identity, budget_anchor, next_follow_up, notes, tasks
         ) VALUES (
           ${id}, ${lead.name || ''}, ${lead.company || ''}, ${lead.dealSize || 0}, 
           ${lead.stage || 'Discovery Scheduled'}, ${lead.callType || ''}, ${lead.bleedingNeck || ''}, 
           ${lead.emotionalAnchor || ''}, ${lead.coi || ''}, ${lead.futureIdentity || ''}, 
-          ${lead.budgetAnchor || ''}, ${lead.nextFollowUp || ''}, ${lead.notes || ''}
+          ${lead.budgetAnchor || ''}, ${lead.nextFollowUp || ''}, ${lead.notes || ''}, 
+          ${JSON.stringify(lead.tasks || [])}
         )
       `;
     }
@@ -630,7 +751,6 @@ app.patch('/api/leads/:id', async (req, res) => {
   const id = req.params.id;
   const updates = req.body;
 
-  // 1. Update Neon Postgres
   try {
     const currentLeads = await sql`SELECT * FROM leads WHERE id = ${id}`;
     if (currentLeads && currentLeads.length > 0) {
@@ -679,74 +799,30 @@ app.patch('/api/leads/:id', async (req, res) => {
         WHERE id = ${id}
       `;
       console.log(`Lead ${id} updated in Neon Postgres.`);
+      res.json({ success: true });
+      io.emit('lead_updated', { ...updates, id });
+    } else {
+        res.status(404).json({ error: 'Lead not found' });
     }
   } catch (pgErr) {
     console.error('Failed to update lead in Neon Postgres:', pgErr);
+    res.status(500).json({ error: 'Failed to update lead' });
   }
-
-  // 2. Update Google Sheets
-  try {
-    const document = await getSheetsDoc();
-    const sheet = document?.sheetsByTitle['Leads_Pipeline'];
-    if (sheet) {
-      const rows = await sheet.getRows();
-      const row = rows.find(r => r.get('ID') === id);
-      if (row) {
-        if (updates.name !== undefined) row.set('Name', updates.name);
-        if (updates.company !== undefined) row.set('Company', updates.company);
-        if (updates.dealSize !== undefined) row.set('Deal_Size', updates.dealSize);
-        if (updates.stage) row.set('Stage', updates.stage);
-        if (updates.callType !== undefined) row.set('Call_Type', updates.callType);
-        if (updates.bleedingNeck !== undefined) row.set('Bleeding_Neck', updates.bleedingNeck);
-        if (updates.emotionalAnchor) row.set('Emotional_Anchor', updates.emotionalAnchor);
-        if (updates.coi) row.set('Cost_of_Inaction', updates.coi);
-        if (updates.futureIdentity !== undefined) row.set('Future_Identity', updates.futureIdentity);
-        if (updates.budgetAnchor !== undefined) row.set('Budget_Anchor', updates.budgetAnchor);
-        if (updates.nextFollowUp) row.set('Next_Follow_Up_Date', updates.nextFollowUp);
-        if (updates.notes !== undefined) row.set('Notes', updates.notes);
-        if (updates.tasks !== undefined) row.set('Tasks', JSON.stringify(updates.tasks));
-        await row.save();
-        console.log(`Lead ${id} backup updated in Google Sheets.`);
-      }
-    }
-  } catch (sheetErr) {
-    console.error('Failed to update lead backup in Google Sheets:', sheetErr);
-  }
-
-  res.json({ success: true });
-  io.emit('lead_updated', { ...updates, id });
 });
 
 // DELETE /api/leads/:id
 app.delete('/api/leads/:id', async (req, res) => {
   const id = req.params.id;
 
-  // 1. Delete from Neon Postgres
   try {
     await sql`DELETE FROM leads WHERE id = ${id}`;
     console.log(`Lead ${id} deleted from Neon Postgres.`);
+    res.json({ success: true });
+    io.emit('lead_deleted', { id });
   } catch (pgErr) {
     console.error('Failed to delete lead from Neon Postgres:', pgErr);
+    res.status(500).json({ error: 'Failed to delete lead' });
   }
-
-  // 2. Delete from Google Sheets
-  try {
-    const document = await getSheetsDoc();
-    const sheet = document?.sheetsByTitle['Leads_Pipeline'];
-    if (sheet) {
-      const rows = await sheet.getRows();
-      const row = rows.find(r => r.get('ID') === id);
-      if (row) {
-        await row.delete();
-        console.log(`Lead ${id} backup deleted from Google Sheets.`);
-      }
-    }
-  } catch (sheetErr) {
-    console.error('Failed to delete lead backup from Google Sheets:', sheetErr);
-  }
-
-  res.json({ success: true });
-  io.emit('lead_deleted', { id });
 });
 
 // Influence Map Endpoints
@@ -754,106 +830,43 @@ app.get('/api/influence', async (req, res) => {
   const leadId = req.query.leadId as string;
   if (!leadId) return res.status(400).json({ error: 'leadId is required' });
 
-  let stakeholders: any[] = [];
   try {
-    const dbStakeholders = await sql`SELECT * FROM stakeholders WHERE lead_id = ${leadId} ORDER BY id ASC`;
-    if (dbStakeholders && dbStakeholders.length > 0) {
-      stakeholders = dbStakeholders.map(mapPostgresStakeholder);
+    let dbStakeholders;
+    if ((req as any).isAdmin) {
+      dbStakeholders = await sql`SELECT * FROM stakeholders WHERE lead_id = ${leadId} ORDER BY id ASC`;
+    } else {
+      dbStakeholders = await sql`SELECT * FROM stakeholders WHERE lead_id = ${leadId} AND user_email = ${(req as any).userEmail} ORDER BY id ASC`;
     }
+    const stakeholders = dbStakeholders ? dbStakeholders.map(mapPostgresStakeholder) : [];
+    res.json({ stakeholders });
   } catch (dbErr) {
     console.error('Failed to fetch stakeholders from Neon Postgres:', dbErr);
+    res.status(500).json({ error: 'Failed to fetch stakeholders' });
   }
-
-  if (stakeholders.length === 0) {
-    try {
-      const document = await getSheetsDoc();
-      const sheet = document?.sheetsByTitle['Influence_Map'];
-      if (sheet) {
-        const rows = await sheet.getRows();
-        stakeholders = rows
-          .filter(row => row.get('Lead_ID') === leadId)
-          .map(row => ({
-            id: row.get('ID') || row.rowNumber.toString(),
-            leadId: row.get('Lead_ID'),
-            name: row.get('Stakeholder_Name') || '',
-            role: row.get('Role') || '',
-            quadrant: row.get('Quadrant') || 'Monitor',
-            status: row.get('Status') || 'Neutral',
-            primaryFear: row.get('Primary_Fear') || ''
-          }));
-
-        if (stakeholders.length > 0) {
-          console.log(`Syncing ${stakeholders.length} stakeholders to Neon Postgres...`);
-          for (const sh of stakeholders) {
-            try {
-              await sql`
-                INSERT INTO stakeholders (id, lead_id, name, role, quadrant, status, primary_fear)
-                VALUES (${sh.id}, ${sh.leadId}, ${sh.name}, ${sh.role}, ${sh.quadrant}, ${sh.status}, ${sh.primaryFear})
-                ON CONFLICT (id) DO UPDATE SET
-                  lead_id = EXCLUDED.lead_id,
-                  name = EXCLUDED.name,
-                  role = EXCLUDED.role,
-                  quadrant = EXCLUDED.quadrant,
-                  status = EXCLUDED.status,
-                  primary_fear = EXCLUDED.primary_fear
-              `;
-            } catch (insErr) {
-              console.error(`Failed to sync stakeholder ${sh.id} to Neon Postgres:`, insErr);
-            }
-          }
-        }
-      }
-    } catch (sheetErr) {
-      console.error('Failed to load stakeholders from Google Sheets:', sheetErr);
-    }
-  }
-
-  res.json({ stakeholders });
 });
 
 app.post('/api/influence', async (req, res) => {
   const id = Date.now().toString();
+  const userEmail = (req as any).userEmail;
   const { leadId, name, role, quadrant, status, primaryFear } = req.body;
 
-  // 1. Save to Neon Postgres
   try {
     await sql`
-      INSERT INTO stakeholders (id, lead_id, name, role, quadrant, status, primary_fear)
-      VALUES (${id}, ${leadId}, ${name || ''}, ${role || ''}, ${quadrant || 'Monitor'}, ${status || 'Neutral'}, ${primaryFear || ''})
+      INSERT INTO stakeholders (id, user_email, lead_id, name, role, quadrant, status, primary_fear)
+      VALUES (${id}, ${userEmail || ''}, ${leadId}, ${name || ''}, ${role || ''}, ${quadrant || 'Monitor'}, ${status || 'Neutral'}, ${primaryFear || ''})
     `;
     console.log(`Stakeholder ${id} created in Neon Postgres.`);
+    res.json({ success: true, id });
   } catch (pgErr) {
     console.error('Failed to insert stakeholder into Neon Postgres:', pgErr);
+    res.status(500).json({ error: 'Failed to create stakeholder' });
   }
-
-  // 2. Backup to Google Sheets
-  try {
-    const document = await getSheetsDoc();
-    const sheet = document?.sheetsByTitle['Influence_Map'];
-    if (sheet) {
-      await sheet.addRow({
-        ID: id,
-        Lead_ID: leadId,
-        Stakeholder_Name: name || '',
-        Role: role || '',
-        Quadrant: quadrant || 'Monitor',
-        Status: status || 'Neutral',
-        Primary_Fear: primaryFear || ''
-      });
-      console.log(`Stakeholder ${id} backed up to Google Sheets.`);
-    }
-  } catch (sheetErr) {
-    console.error('Failed to backup stakeholder to Google Sheets:', sheetErr);
-  }
-
-  res.json({ success: true, id });
 });
 
 app.patch('/api/influence/:id', async (req, res) => {
   const id = req.params.id;
   const updates = req.body;
 
-  // 1. Update Neon Postgres
   try {
     const currentSHs = await sql`SELECT * FROM stakeholders WHERE id = ${id}`;
     if (currentSHs && currentSHs.length > 0) {
@@ -876,64 +889,28 @@ app.patch('/api/influence/:id', async (req, res) => {
         WHERE id = ${id}
       `;
       console.log(`Stakeholder ${id} updated in Neon Postgres.`);
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Stakeholder not found' });
     }
   } catch (pgErr) {
     console.error('Failed to update stakeholder in Neon Postgres:', pgErr);
+    res.status(500).json({ error: 'Failed to update stakeholder' });
   }
-
-  // 2. Update Google Sheets
-  try {
-    const document = await getSheetsDoc();
-    const sheet = document?.sheetsByTitle['Influence_Map'];
-    if (sheet) {
-      const rows = await sheet.getRows();
-      const row = rows.find(r => r.get('ID') === id || r.rowNumber.toString() === id);
-      if (row) {
-        if (updates.name !== undefined) row.set('Stakeholder_Name', updates.name);
-        if (updates.role !== undefined) row.set('Role', updates.role);
-        if (updates.quadrant !== undefined) row.set('Quadrant', updates.quadrant);
-        if (updates.status !== undefined) row.set('Status', updates.status);
-        if (updates.primaryFear !== undefined) row.set('Primary_Fear', updates.primaryFear);
-        await row.save();
-        console.log(`Stakeholder ${id} backup updated in Google Sheets.`);
-      }
-    }
-  } catch (sheetErr) {
-    console.error('Failed to update stakeholder backup in Google Sheets:', sheetErr);
-  }
-
-  res.json({ success: true });
 });
 
 app.delete('/api/influence', async (req, res) => {
   const id = req.query.id as string;
   if (!id) return res.status(400).json({ error: 'id is required' });
 
-  // 1. Delete from Neon Postgres
   try {
     await sql`DELETE FROM stakeholders WHERE id = ${id}`;
     console.log(`Stakeholder ${id} deleted from Neon Postgres.`);
+    res.json({ success: true });
   } catch (pgErr) {
     console.error('Failed to delete stakeholder from Neon Postgres:', pgErr);
+    res.status(500).json({ error: 'Failed to delete stakeholder' });
   }
-
-  // 2. Delete from Google Sheets
-  try {
-    const document = await getSheetsDoc();
-    const sheet = document?.sheetsByTitle['Influence_Map'];
-    if (sheet) {
-      const rows = await sheet.getRows();
-      const row = rows.find(r => r.get('ID') === id || r.rowNumber.toString() === id);
-      if (row) {
-        await row.delete();
-        console.log(`Stakeholder ${id} backup deleted from Google Sheets.`);
-      }
-    }
-  } catch (sheetErr) {
-    console.error('Failed to delete stakeholder backup from Google Sheets:', sheetErr);
-  }
-
-  res.json({ success: true });
 });
 
 import fs from 'fs';
@@ -1060,10 +1037,37 @@ app.all('/api/*', (req, res) => {
   res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
 });
 
+async function ensureSovereignAdmin() {
+  try {
+    const email = 'harristotle84@gmail.com';
+    const users = await sql`SELECT * FROM users WHERE email = ${email}`;
+    
+    if (!users || users.length === 0) {
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash('Colony082987@', salt);
+      await sql`
+        INSERT INTO users (id, name, email, phone, subscription, is_admin, password_hash)
+        VALUES (${Date.now().toString()}, 'Admin', ${email}, '', 'pro', true, ${hash})
+      `;
+      console.log('Sovereign admin created.');
+    } else if (!users[0].password_hash) {
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash('Colony082987@', salt);
+      await sql`
+        UPDATE users SET password_hash = ${hash}, is_admin = true WHERE email = ${email}
+      `;
+      console.log('Sovereign admin password and admin status updated.');
+    }
+  } catch (error) {
+    console.error('Failed to ensure sovereign admin:', error);
+  }
+}
+
 async function startServer() {
   // Initialize Neon Postgres schemas safely before booting
   try {
     await initDb();
+    await ensureSovereignAdmin();
     console.log('Neon Postgres schema initialization completed successfully.');
   } catch (err) {
     console.error('Failed to initialize Neon Postgres:', err);

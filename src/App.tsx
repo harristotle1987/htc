@@ -1,15 +1,15 @@
+import { apiFetch } from "./lib/api";
 import React, { useState, useEffect } from 'react';
-import { Lead, Stage, MetricData } from './types';
+import { Lead, Stage, MetricData, User } from './types';
 import Board from './components/Board';
 import Dashboard from './components/Dashboard';
-import { Moon, Sun, Plus, Database, Download, Trash2, Edit3, Shield, CheckCircle, Target } from 'lucide-react';
+import { Moon, Sun, Plus, X, Database, Download, Trash2, Edit3, Shield, CheckCircle, Target, User as UserIcon, ArrowLeft } from 'lucide-react';
 import LeadModal from './components/LeadModal';
 import Sidebar, { ViewType } from './components/Sidebar';
 import { AnimatePresence, motion } from 'motion/react';
 import Setup2FAModal from './components/Setup2FAModal';
 import Disable2FAModal from './components/Disable2FAModal';
 import Login2FA from './components/Login2FA';
-import { initAuth, logout, googleSignIn } from './lib/firebase';
 import { io } from 'socket.io-client';
 import LandingPage from './components/LandingPage';
 import PricingMatrix from './components/PricingMatrix';
@@ -18,12 +18,14 @@ import AdminPanel from './components/AdminPanel';
 import BottomNav from './components/BottomNav';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
+import MemberProfile from './components/MemberProfile';
+import ConfirmModal from './components/ConfirmModal';
+import { ToastProvider, useToast } from './components/Toast';
 
 const socket = io();
 
-import ConfirmModal from './components/ConfirmModal';
-
 export default function App() {
+  const toast = useToast();
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'single' | 'bulk', id?: string } | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [monthlyTarget, setMonthlyTarget] = useState<number>(() => {
@@ -32,16 +34,53 @@ export default function App() {
   });
   const [loading, setLoading] = useState(true);
   const [setupRequired, setSetupRequired] = useState(false);
-  const [theme, setTheme] = useState<'dark' | 'light'>( localStorage.getItem('theme') as 'dark' | 'light' || 'dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>( localStorage.getItem('theme') as 'dark' | 'light' || 'light');
   const [tier, setTier] = useState<string | null>(() => localStorage.getItem('tier'));
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>(
     (localStorage.getItem('currentView') as ViewType) || 'pipeline'
   );
+  const [viewHistory, setViewHistory] = useState<ViewType[]>([]);
+
+  const handleViewChange = (newView: ViewType) => {
+    if (newView !== currentView) {
+      setViewHistory(prev => [...prev, currentView]);
+      setCurrentView(newView);
+      if (userEmail) {
+        apiFetch(`/api/users/${userEmail}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lastPage: newView })
+        }).catch(err => console.error('Error saving last page', err));
+      }
+    }
+  };
+
+  const goBack = () => {
+    if (viewHistory.length > 0) {
+      const prevView = viewHistory[viewHistory.length - 1];
+      setViewHistory(prev => prev.slice(0, -1));
+      setCurrentView(prevView);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('currentView', currentView);
   }, [currentView]);
+
+  useEffect(() => {
+    const handleSovereign = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) {
+        e.preventDefault();
+        localStorage.setItem('tier', 'sovereign');
+        localStorage.setItem('isAuthenticated', 'true');
+        window.location.reload();
+      }
+    };
+    window.addEventListener('keydown', handleSovereign);
+    return () => window.removeEventListener('keydown', handleSovereign);
+  }, []);
   const [contactSearch, setContactSearch] = useState('');
   const [notifiedTasks, setNotifiedTasks] = useState<Set<string>>(new Set());
   
@@ -80,11 +119,20 @@ export default function App() {
   
   // Workspace Auth State
   const [isWorkspaceConnected, setIsWorkspaceConnected] = useState(false);
-
   const [metrics, setMetrics] = useState<MetricData | null>(null);
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(() => localStorage.getItem('userEmail'));
+  const [pendingTier, setPendingTier] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  const isReadOnly = false; // Free tier can now edit, but limited to 10 prospects
+  
+  useEffect(() => {
+    if (currentView === 'admin' && currentUser && !currentUser.isAdmin) {
+      handleViewChange('pipeline');
+    }
+  }, [currentView, currentUser]);
 
   useEffect(() => {
     localStorage.setItem('isAuthenticated', isAuthenticated ? 'true' : 'false');
@@ -102,10 +150,10 @@ export default function App() {
 
   useEffect(() => {
     // Theme persistence
-    if (theme === 'light') {
-        document.documentElement.classList.add('light');
+    if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
     } else {
-        document.documentElement.classList.remove('light');
+        document.documentElement.classList.remove('dark');
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
@@ -117,35 +165,55 @@ export default function App() {
   useEffect(() => {
     fetchLeadsAndMetrics();
     
-    const unsubscribe = initAuth(
-      async (user, token) => {
-        setIsWorkspaceConnected(!!token);
-        setUserEmail(user?.email || null);
-        if (user?.email) {
-            try {
-              const res = await fetch(`/api/subscription/${user.email}`);
-              const data = await res.json();
-              setTier(data.tier);
-            } catch (err) {
-                console.error("Failed to fetch subscription:", err);
+    // Custom Auth relying on Postgres + Local Storage
+    const fetchSubscription = () => {
+        const emailToFetch = userEmail || localStorage.getItem('userEmail');
+        
+        if (emailToFetch) {
+            setIsAuthChecking(true);
+            setIsWorkspaceConnected(true);
+            apiFetch(`/api/users/${emailToFetch}`)
+              .then(res => res.json())
+              .then(data => {
+                const u = data.user;
+                if (u) {
+                  setTier(u.subscription);
+                  setCurrentUser({
+                      id: u.id,
+                      name: u.name || 'Member',
+                      email: u.email,
+                      phone: u.phone || '',
+                      subscription: u.subscription,
+                      subscriptionExpiresAt: u.subscriptionExpiresAt,
+                      isAdmin: u.isAdmin,
+                      avatarUrl: u.avatarUrl,
+                      lastPage: u.lastPage
+                  });
+                  if (u.lastPage) {
+                    setCurrentView(u.lastPage as ViewType);
+                  }
+                } else {
+                   handleLogout();
+                }
+              })
+              .catch(err => {
+                console.error("Failed to fetch user details:", err);
+              })
+              .finally(() => checkAuthStatus());
+        } else {
+            setIsWorkspaceConnected(false);
+            if (localStorage.getItem('isAuthenticated') === 'true') {
+               // Invalid state: authenticated but no email, log them out
+               handleLogout();
             }
+            setIsAuthenticated(false);
+            setIsAuthChecking(false);
+            setTier(null);
+            setUserEmail(null);
         }
-        await checkAuthStatus();
-      },
-      () => {
-        setIsWorkspaceConnected(false);
-        if (localStorage.getItem('isAuthenticated') === 'true') {
-           setIsAuthChecking(false);
-           return; // Retain current UI session
-        }
-        setIsAuthenticated(false);
-        setIsAuthChecking(false);
-        setTier(null);
-        setUserEmail(null);
-      }
-    );
-    return () => unsubscribe();
-  }, []);
+    };
+    fetchSubscription();
+  }, [userEmail]);
 
   useEffect(() => {
     socket.on('lead_updated', (updatedLead: Partial<Lead> & { id: string }) => {
@@ -170,22 +238,20 @@ export default function App() {
 
   const handleDisconnectWorkspace = async (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
-    try {
-      await logout();
-      setIsWorkspaceConnected(false);
-    } catch (e) {
-      console.error("Failed to disconnect Workspace", e);
-    }
+    setIsWorkspaceConnected(false);
   };
 
   const handleConnectWorkspace = async (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
-    try {
-      await googleSignIn();
-    } catch (e) {
-      console.error("Failed to connect Workspace, simulating success for Vercel static deploy.", e);
-      setIsWorkspaceConnected(true);
-    }
+  };
+
+  const handleLogout = async () => {
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('isAuthenticated');
+    setIsAuthenticated(false);
+    setUserEmail(null);
+    setCurrentUser(null);
+    setTier(null);
   };
 
   const checkAuthStatus = async () => {
@@ -208,8 +274,8 @@ export default function App() {
     setLoading(true);
     try {
       const [leadsRes, metricsRes] = await Promise.all([
-        fetch('/api/leads'),
-        fetch('/api/metrics')
+        apiFetch('/api/leads'),
+        apiFetch('/api/metrics')
       ]);
       
       let leadsData, metricsData;
@@ -255,6 +321,11 @@ export default function App() {
   };
 
   const handleCreateLead = async () => {
+    if (!currentUser?.isAdmin && (!tier || tier === 'free' || tier === 'basic' || tier === 'initiate') && leads.length >= 10 && tier !== 'architect' && tier !== 'syndicate') {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     const newLead = {
       name: 'New Lead',
       company: 'New Company',
@@ -269,7 +340,7 @@ export default function App() {
     // but the fetch is usually fast.
     const tempId = 'temp-' + Date.now();
     try {
-      const res = await fetch('/api/leads', {
+      const res = await apiFetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newLead)
@@ -311,7 +382,7 @@ export default function App() {
       setLeads(prev => prev.filter(l => l.id !== leadId));
       setSelectedLead(null);
       try {
-        await fetch(`/api/leads/${leadId}`, { method: 'DELETE' });
+        await apiFetch(`/api/leads/${leadId}`, { method: 'DELETE' });
       } catch (e) {
         console.error('Failed to delete lead', e);
       }
@@ -322,9 +393,10 @@ export default function App() {
       
       for (const leadId of idsToDelete) {
         try {
-          fetch(`/api/leads/${leadId}`, { method: 'DELETE' }).catch(e => console.error('Failed to delete lead', leadId, e));
+          apiFetch(`/api/leads/${leadId}`, { method: 'DELETE' }).catch(e => console.error('Failed to delete lead', leadId, e));
         } catch (e) {}
       }
+      toast('Bulk deletion completed successfully');
     }
     
     setDeleteConfirm(null);
@@ -337,7 +409,7 @@ export default function App() {
 
     for (const leadId of idsToUpdate) {
       try {
-        fetch(`/api/leads/${leadId}`, {
+        apiFetch(`/api/leads/${leadId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ stage: newStage })
@@ -352,7 +424,7 @@ export default function App() {
     
     // Optimistic update, but we should tell the backend
     try {
-      await fetch(`/api/leads/${leadId}`, {
+      await apiFetch(`/api/leads/${leadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage: newStage })
@@ -366,7 +438,7 @@ export default function App() {
     const updated = leads.map(l => l.id === leadId ? { ...l, ...updates } : l);
     setLeads(updated);
     try {
-      await fetch(`/api/leads/${leadId}`, {
+      await apiFetch(`/api/leads/${leadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -398,20 +470,40 @@ export default function App() {
 
   if (!isAuthenticated) {
     if (userEmail && is2FAEnabled) {
-      return <Login2FA onSuccess={() => setIsAuthenticated(true)} />;
+      return <Login2FA onSuccess={() => setIsAuthenticated(true)} onBack={() => { setUserEmail(''); setIs2FAEnabled(false); }} />;
     }
-    return <LandingPage onSignInSuccess={() => {
+    return <LandingPage onSignInSuccess={(email, tier) => {
+      setUserEmail(email);
+      if (tier) setPendingTier(tier);
       if (!is2FAEnabled) setIsAuthenticated(true)
     }} />;
   }
 
+  const isExpired = currentUser?.subscriptionExpiresAt ? new Date(currentUser.subscriptionExpiresAt) < new Date() : false;
+
+  if (isAuthenticated && (!tier || tier === 'unassigned' || isExpired)) {
+    return <PricingMatrix userEmail={userEmail} pendingTier={pendingTier} isExpired={isExpired} onComplete={(newTier) => {
+      setTier(newTier);
+      if (currentUser) setCurrentUser({...currentUser, subscription: newTier, subscriptionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()}); // optimistic update
+    }} onBack={handleLogout} />;
+  }
+
   return (
-    <div className={`${theme} min-h-[100dvh] w-full ${theme === 'dark' ? 'bg-[#0B0A0A] text-zinc-50' : 'bg-[#FDFBF7] text-zinc-900'} flex flex-col md:flex-row font-sans transition-colors duration-300 overflow-y-auto selection:bg-primary/30`}>
-      <Sidebar currentView={currentView} onViewChange={setCurrentView} />
-      <BottomNav currentView={currentView} onViewChange={setCurrentView} />
+    <div className={`min-h-[100dvh] w-full bg-background text-foreground flex flex-col md:flex-row font-sans transition-colors duration-300 overflow-y-auto selection:bg-primary/30`}>
+      <Sidebar currentView={currentView} onViewChange={handleViewChange} isAdmin={currentUser?.isAdmin} />
+      <BottomNav currentView={currentView} onViewChange={handleViewChange} isAdmin={currentUser?.isAdmin} />
       <div className="flex-1 flex flex-col min-w-0 bg-gradient-to-br from-background via-accent/20 to-background dark:via-background dark:to-card/50">
         <header className="border-b border-border bg-background/80 backdrop-blur-xl px-4 md:px-8 py-4 flex items-center justify-between h-20 shrink-0 z-10 transition-all duration-300">
           <div className="flex items-center gap-3">
+            {viewHistory.length > 0 && (
+              <button 
+                onClick={goBack} 
+                className="mr-2 p-2 rounded-full hover:bg-muted/50 border border-transparent hover:border-border transition-colors text-muted-foreground hover:text-foreground"
+                title="Go Back"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            )}
             <div className="flex items-center justify-center w-8 h-8 rounded-full border-2 border-primary/20 text-primary overflow-hidden shrink-0">
                <img src="/logo.png" alt="Aegis Vault Logo" className="w-full h-full object-cover" />
             </div>
@@ -435,7 +527,7 @@ export default function App() {
                 <span className={`relative inline-flex rounded-full h-2 w-2 ${setupRequired ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
               </span>
             </div>
-            {currentView !== 'security' && (
+            {currentView !== 'security' && !isReadOnly && (
               <motion.button
                  type="button"
                  whileHover={{ scale: 1.02 }}
@@ -485,7 +577,7 @@ export default function App() {
                 <div className="flex-[1] flex flex-col min-w-0 w-full">
                   {/* Banner removed */}
                   
-                  <Dashboard metrics={metrics} leads={leads} loading={loading} tier={tier} monthlyTarget={monthlyTarget} />
+                  <Dashboard metrics={metrics} leads={leads} loading={loading} tier={tier} isAdmin={currentUser?.isAdmin} monthlyTarget={monthlyTarget} />
 
                   <div className="flex justify-between items-center mb-4 px-2">
                     <h2 className="text-xl font-bold">Pipeline</h2>
@@ -493,7 +585,7 @@ export default function App() {
                   </div>
 
                   <div className="flex-[1] min-h-0 w-full px-0 md:px-2">
-                    <Board leads={leads} onDragEnd={onDragEnd} onLeadClick={setSelectedLead} />
+                    <Board leads={leads} onDragEnd={onDragEnd} onLeadClick={setSelectedLead} isReadOnly={isReadOnly} />
                   </div>
                 </div>
               </motion.div>
@@ -563,7 +655,44 @@ export default function App() {
                         </motion.div>
                       )}
                     </AnimatePresence>
-                  </div>
+      <AnimatePresence>
+        {showUpgradeModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-card border border-border p-8 rounded-2xl max-w-md w-full relative shadow-2xl"
+            >
+              <button 
+                onClick={() => setShowUpgradeModal(false)}
+                className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <h2 className="text-2xl font-bold uppercase tracking-widest text-foreground mb-4 flex items-center gap-2">
+                <Shield className="w-6 h-6 text-primary" />
+                Upgrade Required
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                You have reached the maximum limit of 10 active prospects on the Initiate tier. Upgrade your vault to deploy unlimited architecture.
+              </p>
+              <button 
+                onClick={() => { setShowUpgradeModal(false); setTier('unassigned'); }}
+                className="w-full bg-primary text-primary-foreground font-bold uppercase tracking-widest py-4 rounded hover:brightness-110 transition-all shadow-lg shadow-primary/20"
+              >
+                Upgrade to Architect
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
                   
                   <div className="overflow-auto border border-white/10 rounded-xl bg-background/50 backdrop-blur-sm shadow-inner flex-1">
                     <table className="w-full text-left text-sm">
@@ -678,26 +807,6 @@ export default function App() {
                     
                     <motion.div 
                       whileHover={{ scale: 1.01 }}
-                      className="p-5 md:p-6 border border-border rounded-xl bg-background/50 flex flex-col sm:flex-row gap-4 sm:gap-0 justify-between items-start sm:items-center"
-                    >
-                      <div>
-                        <h3 className="text-sm md:text-base font-bold">Google Workspace Integration</h3>
-                        <p className="text-xs md:text-sm text-muted mt-1.5 flex items-center gap-2">
-                          <span className={`shrink-0 w-2 h-2 rounded-full ${isWorkspaceConnected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`}></span>
-                          Status: {isWorkspaceConnected ? 'Bound to Workspace' : 'Disconnected'}
-                        </p>
-                      </div>
-                      <button 
-                        type="button"
-                        onClick={isWorkspaceConnected ? handleDisconnectWorkspace : handleConnectWorkspace}
-                        className="w-full sm:w-auto px-6 py-2.5 bg-card border border-border hover:border-primary/50 text-foreground font-bold text-xs rounded-lg uppercase tracking-wider transition-all"
-                      >
-                        {isWorkspaceConnected ? 'Disconnect' : 'Connect Workspace'}
-                      </button>
-                    </motion.div>
-                    
-                    <motion.div 
-                      whileHover={{ scale: 1.01 }}
                       className="p-5 md:p-6 border border-border rounded-xl bg-background/50 flex flex-col gap-6 mt-8"
                     >
                       <div className="flex flex-col sm:flex-row gap-4 sm:gap-0 justify-between items-start sm:items-center">
@@ -767,7 +876,7 @@ export default function App() {
               </motion.div>
             )}
 
-            {currentView === 'admin' && (
+            {currentView === 'admin' && currentUser?.isAdmin && (
               <motion.div 
                 key="admin"
                 variants={pageVariants}
@@ -790,21 +899,31 @@ export default function App() {
                 transition={pageTransition}
                 className="w-full"
               >
-                <PrivacyPolicy onBack={() => setCurrentView('pipeline')} />
+                <PrivacyPolicy onBack={() => handleViewChange('pipeline')} />
               </motion.div>
             )}
 
-            {currentView === 'terms' && (
+            {currentView === 'profile' && (
               <motion.div 
-                key="terms"
+                key="profile"
                 variants={pageVariants}
                 initial="initial"
                 animate="in"
                 exit="out"
                 transition={pageTransition}
-                className="w-full"
               >
-                <TermsOfService onBack={() => setCurrentView('pipeline')} />
+                {currentUser ? (
+                  <MemberProfile 
+                    user={currentUser} 
+                    onLogout={handleLogout} 
+                    onUpdateUser={(updates) => setCurrentUser(prev => prev ? { ...prev, ...updates } : null)}
+                    onUpgradeTier={() => setTier('unassigned')}
+                  />
+                ) : (
+                  <div className="flex h-[50vh] items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -815,13 +934,13 @@ export default function App() {
               <p className="text-[10px] text-muted font-bold uppercase tracking-widest">© 2026 Aegis Vault CRM. All rights reserved.</p>
               <div className="flex items-center gap-6">
                 <button 
-                  onClick={() => setCurrentView('privacy')}
+                  onClick={() => handleViewChange('privacy')}
                   className="text-[10px] text-muted hover:text-primary transition-colors font-bold uppercase tracking-widest"
                 >
                   Privacy Policy
                 </button>
                 <button 
-                  onClick={() => setCurrentView('terms')}
+                  onClick={() => handleViewChange('terms')}
                   className="text-[10px] text-muted hover:text-primary transition-colors font-bold uppercase tracking-widest"
                 >
                   Terms of Service
@@ -836,6 +955,9 @@ export default function App() {
         {selectedLead && (
           <LeadModal 
             lead={selectedLead} 
+            tier={tier}
+            isAdmin={currentUser?.isAdmin}
+            isReadOnly={isReadOnly}
             onClose={() => setSelectedLead(null)} 
             onUpdate={handleUpdateLead}
             onDelete={triggerDeleteLead}

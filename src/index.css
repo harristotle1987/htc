@@ -27,22 +27,6 @@
 
 @layer base {
   :root {
-    /* WARM OBSIDIAN MODE (DARK) */
-    --background: 11 10 10; /* #0B0A0A */
-    --foreground: 253 251 247; /* #FDFBF7 */
-    --card: 20 19 18; /* #141312 */
-    --card-foreground: 253 251 247;
-    --primary: 253 230 138; /* amber-200 */
-    --primary-foreground: 11 10 10;
-    --secondary: 212 175 55;
-    --secondary-foreground: 11 10 10;
-    --accent: 39 39 42;
-    --muted: 161 161 170;
-    --border: 120 53 15; /* amber-900 */
-    --input: 20 19 18;
-  }
-
-  .light {
     /* WARM IVORY EDITORIAL (LIGHT) */
     --background: 253 251 247; /* #FDFBF7 */
     --foreground: 24 24 27; /* #18181B */
@@ -57,9 +41,28 @@
     --border: 228 228 231; /* zinc-200 */
     --input: 255 255 255;
   }
+
+  .dark {
+    /* WARM OBSIDIAN MODE (DARK) */
+    --background: 11 10 10; /* #0B0A0A */
+    --foreground: 253 251 247; /* #FDFBF7 */
+    --card: 20 19 18; /* #141312 */
+    --card-foreground: 253 251 247;
+    --primary: 253 230 138; /* amber-200 */
+    --primary-foreground: 11 10 10;
+    --secondary: 212 175 55;
+    --secondary-foreground: 11 10 10;
+    --accent: 39 39 42;
+    --muted: 161 161 170;
+    --border: 120 53 15; /* amber-900 */
+    --input: 20 19 18;
+  }
 }
 
 @layer base {
+  html, body {
+    overflow-x: hidden;
+  }
   body {
     background-color: rgb(var(--background));
     color: rgb(var(--foreground));

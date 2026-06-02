@@ -3,6 +3,7 @@ import { MetricData, Lead } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import AnalyticsChart from './AnalyticsChart';
 import RevenueGauge from './RevenueGauge';
+import { Activity, Target } from 'lucide-react';
 
 interface DashboardProps {
   metrics: MetricData | null;
@@ -10,10 +11,11 @@ interface DashboardProps {
   loading?: boolean;
   tier?: string | null;
   monthlyTarget?: number;
+  isAdmin?: boolean;
 }
 
-export default function Dashboard({ metrics, leads = [], loading = false, tier = 'free', monthlyTarget = 50000 }: DashboardProps) {
-  const isBlur = tier === 'free';
+export default function Dashboard({ metrics, leads = [], loading = false, tier = 'free', monthlyTarget = 50000, isAdmin = false }: DashboardProps) {
+  const isBlur = tier === 'free' && !isAdmin;
   const [cardOrder, setCardOrder] = useState<string[]>(['stc', 'ads', 'cc', 'tlr']);
 
   useEffect(() => {
@@ -153,10 +155,26 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
       </div>
       <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <AnalyticsChart />
+          {tier !== 'syndicate' && !isAdmin ? (
+            <div className="w-full h-[300px] bg-card/60 backdrop-blur-md rounded-2xl border border-border flex items-center justify-center flex-col relative overflow-hidden group">
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
+              <Activity className="w-12 h-12 text-muted-foreground/30 mb-4" />
+              <h3 className="text-xl font-bold text-foreground">Executive Analytics Locked</h3>
+              <p className="text-muted-foreground text-sm mt-2 max-w-sm text-center">Upgrade to Syndicate architectural authorization to access comprehensive velocity tracking.</p>
+            </div>
+          ) : (
+             <AnalyticsChart />
+          )}
         </div>
         <div className="lg:col-span-1">
-          <RevenueGauge leads={leads} targetRevenue={monthlyTarget} />
+          {(tier === 'free' || tier === 'initiate' || tier === 'unassigned') && !isAdmin ? (
+            <div className="w-full h-[300px] bg-card/60 backdrop-blur-md rounded-2xl border border-border flex items-center justify-center flex-col relative overflow-hidden group">
+              <Target className="w-12 h-12 text-muted-foreground/30 mb-4" />
+              <h3 className="text-xl font-bold text-foreground">Revenue Shield Locked</h3>
+            </div>
+          ) : (
+            <RevenueGauge leads={leads} targetRevenue={monthlyTarget} />
+          )}
         </div>
       </div>
     </div>

@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { Lead, Task } from '../types';
-import { X, Save, Trash2, Edit3, Target, Crosshair, Calendar, Mail, Loader2, CheckCircle2, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
+import { X, Save, Trash2, Edit3, Target, Crosshair, Loader2, ChevronUp, ChevronDown, GripVertical, CheckCircle2 } from 'lucide-react';
 import InfluenceMap from './InfluenceMap';
-import RecentEmails from './RecentEmails';
 import TaskList from './TaskList';
 import { motion, AnimatePresence } from 'motion/react';
-import { getAccessToken } from '../lib/firebase';
 
 interface LeadModalProps {
+  isReadOnly?: boolean;
+  tier?: string | null;
+  isAdmin?: boolean;
   lead: Lead;
   onClose: () => void;
   onUpdate: (id: string, updates: Partial<Lead>) => void;
   onDelete: (id: string) => void;
 }
 
-export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadModalProps) {
+export default function LeadModal({ lead, onClose, onUpdate, onDelete, isReadOnly, tier, isAdmin }: LeadModalProps) {
   const [formData, setFormData] = useState<Partial<Lead>>({
     name: lead.name || '',
     company: lead.company || '',
@@ -38,7 +39,20 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
     talkToListenRatio: lead.talkToListenRatio || 0
   });
 
-  const [calStatus, setCalStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  useEffect(() => {
+    if (formData.notes === lead.notes) {
+      setSaveStatus('idle');
+      return;
+    }
+    const timer = setTimeout(() => {
+      setSaveStatus('saving');
+      onUpdate(lead.id, { notes: formData.notes });
+      setTimeout(() => setSaveStatus('saved'), 1500);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [formData.notes, lead.notes, lead.id, onUpdate]);
 
   // Handle escape key
   useEffect(() => {
@@ -54,49 +68,6 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
   const handleSave = () => {
     onUpdate(lead.id, formData);
     onClose();
-  };
-
-  const handlePushToCalendar = async () => {
-    try {
-      setCalStatus('loading');
-      const token = await getAccessToken();
-      if (!token) {
-        setCalStatus('error');
-        alert("Workspace is not connected. Connect in settings.");
-        setTimeout(() => setCalStatus('idle'), 2000);
-        return;
-      }
-      
-      const event = {
-        summary: `Discovery Call: ${formData.name} (${formData.company})`,
-        description: `Revenue Intelligence Intel:\n\nValue Anchor: ${formData.budgetAnchor}\nBleeding Neck: ${formData.bleedingNeck}\nEmotional Anchor: ${formData.emotionalAnchor}\nFuture Identity: ${formData.futureIdentity}`,
-        start: {
-          dateTime: new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        },
-        end: {
-          dateTime: new Date(new Date().getTime() + 25 * 60 * 60 * 1000).toISOString(), // Tomorrow + 1h
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        },
-      };
-
-      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(event)
-      });
-      
-      if (!res.ok) throw new Error('Failed to push to calendar');
-      setCalStatus('success');
-      setTimeout(() => setCalStatus('idle'), 3000);
-    } catch (e) {
-      console.error(e);
-      setCalStatus('error');
-      setTimeout(() => setCalStatus('idle'), 2000);
-    }
   };
 
   return (
@@ -120,7 +91,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
         <div className="flex justify-between items-start p-6 lg:p-8 border-b border-border bg-background/30 shrink-0 relative z-10">
           <div className="flex-1 mr-4">
             <div className="flex items-center gap-2 mb-1 group">
-              <input 
+              <input disabled={isReadOnly} 
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
@@ -131,7 +102,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
             </div>
             
             <div className="flex items-center gap-2 group">
-              <input 
+              <input disabled={isReadOnly} 
                 name="company"
                 value={formData.company}
                 onChange={handleChange}
@@ -143,7 +114,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1 bg-primary/10 border border-primary/20 text-primary px-3 py-1.5 rounded-lg font-bold shadow-inner">
                 $
-                <input 
+                <input disabled={isReadOnly} 
                   type="number"
                   name="dealSize"
                   value={formData.dealSize}
@@ -151,7 +122,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
                   className="bg-transparent border-none focus:outline-none w-24 no-spinners"
                 />
               </div>
-              <select 
+              <select disabled={isReadOnly} 
                 name="stage"
                 value={formData.stage}
                 onChange={handleChange}
@@ -177,9 +148,24 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
           <div className="p-6 lg:p-8 overflow-y-auto flex-1 custom-scrollbar space-y-10 relative z-10">
             
             <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-6">
-              <RecentEmails query={formData.name || ''} />
-              <TaskList tasks={formData.tasks || []} onChange={(t) => setFormData(p => ({ ...p, tasks: t }))} />
+            <div className="space-y-6 flex flex-col">
+              <div className="flex-1 flex flex-col min-h-[250px] border border-border bg-background/30 rounded-xl p-4 shadow-inner">
+                <div className="flex items-center justify-between mb-3 border-b border-border/50 pb-2">
+                  <label className="text-[10px] font-bold text-muted tracking-widest uppercase flex items-center gap-2">
+                    Raw Intelligence Log
+                  </label>
+                  {saveStatus === 'saving' && <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin"/> Saving Notes...</span>}
+                  {saveStatus === 'saved' && <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3"/> Saved</span>}
+                </div>
+                <textarea disabled={isReadOnly} 
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleChange}
+                  placeholder="Dump field notes, objections, and raw intelligence here... (Auto-saves)"
+                  className="w-full flex-1 bg-transparent border-none p-0 pt-1 text-sm focus:outline-none focus:ring-0 custom-scrollbar resize-none text-foreground/90"
+                />
+              </div>
+              <TaskList isReadOnly={isReadOnly} tasks={formData.tasks || []} onChange={(t) => setFormData(p => ({ ...p, tasks: t }))} />
             </div>
             
             <div>
@@ -190,26 +176,6 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
                   </div>
                   <h3 className="text-sm font-bold tracking-widest text-muted uppercase">Sales Diagnosis</h3>
                 </div>
-                
-                {formData.stage === 'Discovery Scheduled' && (
-                  <button 
-                    onClick={handlePushToCalendar}
-                    disabled={calStatus === 'loading' || calStatus === 'success'}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border transition-all ${
-                      calStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' :
-                      calStatus === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-500' :
-                      calStatus === 'loading' ? 'bg-muted/10 border-border text-muted cursor-wait' :
-                      'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20'
-                    }`}
-                  >
-                    {calStatus === 'loading' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    {calStatus === 'success' && <CheckCircle2 className="w-3.5 h-3.5" />}
-                    {calStatus === 'idle' && <Calendar className="w-3.5 h-3.5" />}
-                    {calStatus === 'error' && <Calendar className="w-3.5 h-3.5" />}
-                    
-                    {calStatus === 'success' ? 'Scheduled' : 'Sync Calendar'}
-                  </button>
-                )}
               </div>
               
               <div className="space-y-6">
@@ -217,7 +183,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2.5 group">
                         <label className="text-[10px] font-bold text-muted tracking-widest uppercase ml-1">Closer Percentage</label>
-                        <input 
+                        <input disabled={isReadOnly} 
                           type="number"
                           name="closerPercentage"
                           value={formData.closerPercentage}
@@ -227,7 +193,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
                     </div>
                     <div className="space-y-2.5 group">
                         <label className="text-[10px] font-bold text-muted tracking-widest uppercase ml-1">Payment Amount</label>
-                        <input 
+                        <input disabled={isReadOnly} 
                           type="number"
                           name="amountPaid"
                           value={formData.amountPaid}
@@ -251,7 +217,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
                   <div className="space-y-2.5 group">
                     <label className="text-[10px] font-bold text-muted tracking-widest uppercase ml-1">Talk to Listen Ratio (%)</label>
                     <div className="flex items-center gap-4">
-                      <input 
+                      <input disabled={isReadOnly} 
                         type="range"
                         name="talkToListenRatio"
                         min="0"
@@ -268,7 +234,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2.5 group">
                     <label className="text-[10px] font-bold text-muted tracking-widest uppercase ml-1">Script Pathway</label>
-                    <select 
+                    <select disabled={isReadOnly} 
                       name="callType"
                       value={formData.callType}
                       onChange={handleChange}
@@ -290,7 +256,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
                   
                   <div className="space-y-2.5 group">
                     <label className="text-[10px] font-bold text-muted tracking-widest uppercase ml-1">Budget Anchor</label>
-                    <input 
+                    <input disabled={isReadOnly} 
                       type="text"
                       name="budgetAnchor"
                       value={formData.budgetAnchor}
@@ -305,7 +271,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
                   <label className="text-[10px] font-bold text-red-500/80 tracking-widest uppercase flex items-center gap-2 ml-1">
                     <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span> Bleeding Neck
                   </label>
-                  <textarea 
+                  <textarea disabled={isReadOnly} 
                     name="bleedingNeck"
                     value={formData.bleedingNeck}
                     onChange={handleChange}
@@ -316,7 +282,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
                 
                 <div className="space-y-2.5 group">
                   <label className="text-[10px] font-bold text-primary/80 tracking-widest uppercase ml-1">Emotional Anchor</label>
-                  <textarea 
+                  <textarea disabled={isReadOnly} 
                     name="emotionalAnchor"
                     value={formData.emotionalAnchor}
                     onChange={handleChange}
@@ -327,7 +293,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
 
                 <div className="space-y-2.5 group">
                   <label className="text-[10px] font-bold text-primary-blue/80 tracking-widest uppercase ml-1">Future Identity</label>
-                  <textarea 
+                  <textarea disabled={isReadOnly} 
                     name="futureIdentity"
                     value={formData.futureIdentity}
                     onChange={handleChange}
@@ -338,7 +304,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
 
                 <div className="space-y-2.5 group">
                   <label className="text-[10px] font-bold text-muted tracking-widest uppercase ml-1">Cost of Inaction (COI)</label>
-                  <textarea 
+                  <textarea disabled={isReadOnly} 
                     name="coi"
                     value={formData.coi}
                     onChange={handleChange}
@@ -352,7 +318,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
                     <Crosshair className="w-3 h-3" /> 3-7-14 Cadence Tracker
                   </label>
                   <div className="p-4 bg-background/40 border border-border rounded-xl flex items-center gap-4 flex-wrap">
-                    <input 
+                    <input disabled={isReadOnly} 
                       type="date"
                       name="nextFollowUp"
                       value={formData.nextFollowUp}
@@ -381,7 +347,16 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete }: LeadMod
             </div>
           </section>
 
-          <InfluenceMap leadId={lead.id} />
+          {tier === 'syndicate' || isAdmin ? (
+             <InfluenceMap leadId={lead.id} />
+          ) : (
+             <div className="w-full bg-card border border-border p-8 rounded-2xl flex flex-col items-center justify-center text-center opacity-60">
+                <Target className="w-12 h-12 text-primary/40 mb-4" />
+                <h3 className="text-xl font-bold mb-2">Influence Map Protocol</h3>
+                <p className="text-muted-foreground text-sm max-w-md">The Influence Map Protocol visually plots the organizational chart of key decision makers. This advanced feature is only available on the Syndicate architectural tier.</p>
+                <div className="mt-6 px-4 py-2 border border-primary/20 bg-primary/10 text-primary uppercase text-xs tracking-widest font-bold rounded-lg cursor-not-allowed">Syndicate Required</div>
+             </div>
+          )}
 
         </div>
 

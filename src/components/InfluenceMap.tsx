@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import React, { useState, useEffect } from 'react';
 import { Stakeholder, Quadrant, Status } from '../types';
 import { Plus, Trash2 } from 'lucide-react';
@@ -10,7 +11,7 @@ export default function InfluenceMap({ leadId }: { leadId: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/influence?leadId=${leadId}`)
+    apiFetch(`/api/influence?leadId=${leadId}`)
       .then(res => res.text())
       .then(text => {
         try {
@@ -39,7 +40,7 @@ export default function InfluenceMap({ leadId }: { leadId: string }) {
     setStakeholders(prev => [...prev, newStakeholder]);
 
     try {
-      const res = await fetch('/api/influence', {
+      const res = await apiFetch('/api/influence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newStakeholder)
@@ -55,7 +56,7 @@ export default function InfluenceMap({ leadId }: { leadId: string }) {
 
   const syncStakeholder = async (id: string, updates: Partial<Stakeholder>) => {
     try {
-      await fetch(`/api/influence/${id}`, {
+      await apiFetch(`/api/influence/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -83,7 +84,7 @@ export default function InfluenceMap({ leadId }: { leadId: string }) {
     setStakeholders(prev => prev.filter(s => s.id !== id));
 
     try {
-      await fetch(`/api/influence?id=${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/influence?id=${id}`, { method: 'DELETE' });
     } catch (e) {
       console.error(e);
     }

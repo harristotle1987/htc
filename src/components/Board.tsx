@@ -33,6 +33,7 @@ interface BoardProps {
   leads: Lead[];
   onDragEnd: (leadId: string, newStage: Stage) => void;
   onLeadClick: (lead: Lead) => void;
+  isReadOnly?: boolean;
 }
 
 function Column({ stage, leads, onLeadClick }: { key?: React.Key; stage: Stage, leads: Lead[], onLeadClick: (lead: Lead) => void }) {
@@ -76,7 +77,7 @@ function Column({ stage, leads, onLeadClick }: { key?: React.Key; stage: Stage, 
   );
 }
 
-export default function Board({ leads, onDragEnd, onLeadClick }: BoardProps) {
+export default function Board({ leads, onDragEnd, onLeadClick, isReadOnly }: BoardProps) {
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -85,6 +86,8 @@ export default function Board({ leads, onDragEnd, onLeadClick }: BoardProps) {
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     useSensor(KeyboardSensor)
   );
+
+  const activeSensors = isReadOnly ? [] : sensors;
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -140,7 +143,7 @@ export default function Board({ leads, onDragEnd, onLeadClick }: BoardProps) {
       <div className="flex items-center justify-between gap-4 mb-3 px-1">
         <span className="text-xs text-muted flex items-center gap-1.5 font-medium">
           <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-          Drag cards to advance stage | Scroll horizontally to view sections
+          {isReadOnly ? 'Read-only mode. Upgrade plan to enable dragging.' : 'Drag cards to advance stage | Scroll horizontally to view sections'}
         </span>
         <div className="flex items-center gap-1.5">
           <button 
@@ -163,7 +166,7 @@ export default function Board({ leads, onDragEnd, onLeadClick }: BoardProps) {
       </div>
 
       <DndContext 
-        sensors={sensors} 
+        sensors={activeSensors} 
         collisionDetection={closestCorners} 
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}

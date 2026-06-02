@@ -1,15 +1,16 @@
 import React from 'react';
-import { Target, LayoutDashboard, Users, Shield, Settings, ChevronUp, ChevronDown } from 'lucide-react';
+import { Target, LayoutDashboard, Users, Shield, Settings, ChevronUp, ChevronDown, User } from 'lucide-react';
 import { motion } from 'motion/react';
 
-export type ViewType = 'pipeline' | 'contacts' | 'security' | 'admin' | 'privacy' | 'terms';
+export type ViewType = 'pipeline' | 'contacts' | 'security' | 'admin' | 'privacy' | 'terms' | 'profile';
 
 interface SidebarProps {
   currentView: ViewType;
   onViewChange: (view: ViewType) => void;
+  isAdmin?: boolean;
 }
 
-export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
+export default function Sidebar({ currentView, onViewChange, isAdmin }: SidebarProps) {
   const scrollToTop = () => {
     const main = document.querySelector('main');
     if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
@@ -54,12 +55,21 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
           active={currentView === 'security'} 
           onClick={() => onViewChange('security')} 
         />
+        {isAdmin && (
+          <NavItem 
+            id="admin"
+            icon={<Settings size={18} />} 
+            label="Admin" 
+            active={currentView === 'admin'} 
+            onClick={() => onViewChange('admin')} 
+          />
+        )}
         <NavItem 
-          id="admin"
-          icon={<Settings size={18} />} 
-          label="Admin" 
-          active={currentView === 'admin'} 
-          onClick={() => onViewChange('admin')} 
+          id="profile"
+          icon={<User size={18} />} 
+          label="Profile" 
+          active={currentView === 'profile'} 
+          onClick={() => onViewChange('profile')} 
         />
       </nav>
       

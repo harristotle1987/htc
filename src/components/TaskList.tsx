@@ -5,11 +5,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import ConfirmModal from './ConfirmModal';
 
 interface TaskListProps {
+  isReadOnly?: boolean;
   tasks: Task[];
   onChange: (tasks: Task[]) => void;
 }
 
-export default function TaskList({ tasks, onChange }: TaskListProps) {
+export default function TaskList({ tasks, onChange, isReadOnly }: TaskListProps) {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskAssignee, setNewTaskAssignee] = useState('');
   const [newTaskDate, setNewTaskDate] = useState('');
@@ -66,7 +67,7 @@ export default function TaskList({ tasks, onChange }: TaskListProps) {
       </div>
       
       <div className="p-4 space-y-4">
-        <form onSubmit={handleAddTask} className="flex flex-col gap-2">
+        {!isReadOnly && <form onSubmit={handleAddTask} className="flex flex-col gap-2">
           <input
             type="text"
             placeholder="Task title..."
@@ -90,13 +91,13 @@ export default function TaskList({ tasks, onChange }: TaskListProps) {
             />
             <button
               type="submit"
-              disabled={!newTaskTitle.trim()}
+              disabled={true}
               className="bg-primary/20 text-primary px-3 rounded-lg hover:bg-primary hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
             </button>
           </div>
-        </form>
+        </form>}
 
         <div className="space-y-2">
           <AnimatePresence>
@@ -114,8 +115,8 @@ export default function TaskList({ tasks, onChange }: TaskListProps) {
               >
                 <div className="flex items-start gap-3 flex-1 min-w-0">
                   <button
-                    onClick={() => toggleTask(task.id)}
-                    className={`mt-0.5 shrink-0 w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
+                    onClick={() => !isReadOnly && toggleTask(task.id)}
+                    className={`mt-0.5 shrink-0 ${isReadOnly ? "cursor-default" : "cursor-pointer"} w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
                       task.completed
                         ? 'bg-primary border-primary text-primary-foreground'
                         : 'border-muted hover:border-primary'
@@ -142,12 +143,12 @@ export default function TaskList({ tasks, onChange }: TaskListProps) {
                   </div>
                 </div>
                 
-                <button
+                {!isReadOnly && <button
                   onClick={() => setTaskToDelete(task.id)}
                   className="text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 p-1 transition-opacity"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                </button>}
               </motion.div>
             ))}
           </AnimatePresence>

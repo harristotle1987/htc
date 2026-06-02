@@ -1,12 +1,13 @@
 import { useState, FormEvent } from 'react';
 import { motion } from 'motion/react';
-import { Shield } from 'lucide-react';
+import { Shield, ArrowLeft } from 'lucide-react';
 
 interface Login2FAProps {
   onSuccess: () => void;
+  onBack?: () => void;
 }
 
-export default function Login2FA({ onSuccess }: Login2FAProps) {
+export default function Login2FA({ onSuccess, onBack }: Login2FAProps) {
   const [token, setToken] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,6 +35,15 @@ export default function Login2FA({ onSuccess }: Login2FAProps) {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+      {onBack && (
+        <button 
+          onClick={onBack}
+          className="absolute top-8 left-8 sm:top-12 sm:left-12 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
+        >
+          <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+          <span className="font-bold uppercase tracking-widest text-[10px]">Back</span>
+        </button>
+      )}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import { useState, useEffect, FormEvent } from 'react';
 import { motion } from 'motion/react';
 import { Shield, X, Scan, Key } from 'lucide-react';
@@ -19,7 +20,7 @@ export default function Setup2FAModal({ onClose, onSuccess }: Setup2FAProps) {
   useEffect(() => {
     const generateToken = async () => {
       try {
-        const response = await fetch('/api/auth/2fa/generate', {
+        const response = await apiFetch('/api/auth/2fa/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: 'user@example.com' }) // Replace with actual user email
@@ -42,7 +43,7 @@ export default function Setup2FAModal({ onClose, onSuccess }: Setup2FAProps) {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/2fa/verify', {
+      const response = await apiFetch('/api/auth/2fa/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ secret, token, email: 'user@example.com' }) // Replace with actual user email

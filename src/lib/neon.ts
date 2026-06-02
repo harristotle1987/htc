@@ -14,6 +14,7 @@ export async function initDb() {
     await sql`
       CREATE TABLE IF NOT EXISTS leads (
         id VARCHAR(50) PRIMARY KEY,
+        user_email VARCHAR(255),
         name VARCHAR(255),
         company VARCHAR(255),
         deal_size NUMERIC,
@@ -34,6 +35,8 @@ export async function initDb() {
         talk_to_listen_ratio NUMERIC
       )
     `;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)`;
+    await sql`UPDATE leads SET user_email = 'harristotle84@gmail.com' WHERE user_email IS NULL`;
     await sql`ALTER TABLE leads ALTER COLUMN stage TYPE VARCHAR(100) USING stage::varchar`;
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS tasks TEXT`;
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS closer_id VARCHAR(50)`;
@@ -177,6 +180,7 @@ export async function initDb() {
     await sql`
       CREATE TABLE IF NOT EXISTS metrics (
         id VARCHAR(50) PRIMARY KEY,
+        user_email VARCHAR(255),
         total_calls VARCHAR(100),
         shows VARCHAR(100),
         closes VARCHAR(100),
@@ -190,11 +194,14 @@ export async function initDb() {
         cash_collected VARCHAR(100)
       )
     `;
+    await sql`ALTER TABLE metrics ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)`;
+    await sql`UPDATE metrics SET user_email = 'harristotle84@gmail.com' WHERE user_email IS NULL`;
 
     // 3. Stakeholders Table (stores Influence_Map details)
     await sql`
       CREATE TABLE IF NOT EXISTS stakeholders (
         id VARCHAR(50) PRIMARY KEY,
+        user_email VARCHAR(255),
         lead_id VARCHAR(50),
         name VARCHAR(255),
         role VARCHAR(255),
@@ -203,6 +210,8 @@ export async function initDb() {
         primary_fear TEXT
       )
     `;
+    await sql`ALTER TABLE stakeholders ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)`;
+    await sql`UPDATE stakeholders SET user_email = 'harristotle84@gmail.com' WHERE user_email IS NULL`;
 
     // 4. Users Table (stores auth/subscription details)
     await sql`
@@ -213,10 +222,17 @@ export async function initDb() {
         phone TEXT,
         subscription TEXT DEFAULT 'free',
         is_admin BOOLEAN DEFAULT FALSE,
-        signup_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        signup_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        subscription_expires_at TIMESTAMP
       )
     `;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS paystack_reference TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS monnify_reference TEXT`;
 
     // 5. Logs Table (stores application activity logs)
     await sql`
@@ -227,6 +243,45 @@ export async function initDb() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `;
+
+    // 6. Payments Table (stores payment history)
+    await sql`
+      CREATE TABLE IF NOT EXISTS payments (
+        id SERIAL PRIMARY KEY,
+        user_email TEXT,
+        amount NUMERIC,
+        reference TEXT,
+        tier TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_page VARCHAR(50) DEFAULT 'pipeline'`;
+
+    // 7. Tier Prices Table
+    await sql`
+      CREATE TABLE IF NOT EXISTS tier_prices (
+        tier TEXT PRIMARY KEY,
+        price NUMERIC NOT NULL,
+        price_monthly NUMERIC,
+        price_quarterly NUMERIC,
+        price_annually NUMERIC
+      )
+    `;
+    
+    // Add columns if they didn't exist in previous schema
+    await sql`ALTER TABLE tier_prices ADD COLUMN IF NOT EXISTS price_monthly NUMERIC`;
+    await sql`ALTER TABLE tier_prices ADD COLUMN IF NOT EXISTS price_quarterly NUMERIC`;
+    await sql`ALTER TABLE tier_prices ADD COLUMN IF NOT EXISTS price_annually NUMERIC`;
+    
+    const existingPrices = await sql`SELECT count(*) FROM tier_prices`;
+    if (parseInt(existingPrices[0].count) === 0) {
+      await sql`INSERT INTO tier_prices (tier, price, price_monthly, price_quarterly, price_annually) VALUES ('architect', 6, 6, 16.2, 57.6), ('syndicate', 16, 16, 43.2, 153.6)`;
+    } else {
+      await sql`UPDATE tier_prices SET price_monthly = price WHERE price_monthly IS NULL`;
+      await sql`UPDATE tier_prices SET price_quarterly = price * 3 * 0.9 WHERE price_quarterly IS NULL`;
+      await sql`UPDATE tier_prices SET price_annually = price * 12 * 0.8 WHERE price_annually IS NULL`;
+    }
 
     console.log("Neon Postgres tables initialized successfully.");
   } catch (err) {

@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import React, { useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { Upload, X, Check } from 'lucide-react';
@@ -68,7 +69,7 @@ export default function CsvImporter({ onImport }: CsvImporterProps) {
   };
 
   const confirmImport = async () => {
-    await fetch('/api/leads/import', {
+    await apiFetch('/api/leads/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leads: fullLeads })

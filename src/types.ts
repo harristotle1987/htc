@@ -72,3 +72,23 @@ export interface Lead {
   stakeholders?: Stakeholder[];
   tasks?: Task[];
 }
+
+export interface Payment {
+  id: string | number;
+  amount: number;
+  reference: string;
+  tier: string;
+  date: string;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  subscription: string;
+  subscriptionExpiresAt?: string | null;
+  isAdmin: boolean;
+  avatarUrl?: string;
+  lastPage?: string;
+}

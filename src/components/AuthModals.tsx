@@ -1,16 +1,17 @@
+import { apiFetch } from "../lib/api";
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, User, Phone, CheckCircle, Eye, EyeOff } from 'lucide-react';
-import { googleSignIn, emailSignUp, emailSignIn } from '../lib/firebase';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   type: 'login' | 'signup';
-  onSignInSuccess: () => void;
+  onSignInSuccess: (email: string) => void;
+  onTypeChange?: (type: 'login' | 'signup') => void;
 }
 
-export default function AuthModal({ isOpen, onClose, type, onSignInSuccess }: AuthModalProps) {
+export default function AuthModal({ isOpen, onClose, type, onSignInSuccess, onTypeChange }: AuthModalProps) {
   const [formData, setFormData] = useState({ name: '', email: '', password: '', phone: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,48 +20,54 @@ export default function AuthModal({ isOpen, onClose, type, onSignInSuccess }: Au
     e.preventDefault();
     setError(null);
     if (type === 'signup') {
-      // 1. Firebase signup
       try {
-          await emailSignUp(formData.email, formData.password);
-      } catch (e: any) {
-          if (e.code === 'auth/email-already-in-use') {
-              try {
-                  await emailSignIn(formData.email, formData.password);
-                  onSignInSuccess();
-                  onClose();
-                  return; 
-              } catch (signInErr) {
-                  setError('Account exists, but password was incorrect.');
-                  return;
-              }
+        const res = await apiFetch('/api/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        const data = await res.json();
+        
+        if (res.ok) {
+          onSignInSuccess(formData.email);
+          onClose();
+        } else {
+          if (data.error === 'auth/email-already-in-use') {
+            const loginRes = await apiFetch('/api/login', {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({ email: formData.email, password: formData.password })
+            });
+            if (loginRes.ok) {
+               onSignInSuccess(formData.email);
+               onClose();
+            } else {
+               setError('Account exists, but password was incorrect.');
+            }
           } else {
-              setError('An error occurred during sign up.');
+            setError(data.error || 'An error occurred during sign up.');
           }
-          console.error(e);
-          return;
-      }
-      // 2. Send to API
-      const res = await fetch('/api/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      if (res.ok) {
-        onSignInSuccess();
-        onClose();
-      } else {
-        setError('Failed to complete setup.');
+        }
+      } catch (e) {
+        setError('Network error connecting to API');
       }
     } else {
-        // Standard Firebase auth via login
-        try {
-            await emailSignIn(formData.email, formData.password);
-            onSignInSuccess();
-            onClose();
-        } catch (e) {
-            setError('Invalid credentials.');
-            console.error(e);
+      try {
+        const res = await apiFetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: formData.email, password: formData.password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          onSignInSuccess(formData.email);
+          onClose();
+        } else {
+          setError(data.error || 'Invalid credentials.');
         }
+      } catch (e) {
+        setError('Network error connecting to API');
+      }
     }
   };
 
@@ -81,10 +88,10 @@ export default function AuthModal({ isOpen, onClose, type, onSignInSuccess }: Au
             exit={{ opacity: 0, scale: 0.95 }}
             className="fixed inset-0 flex items-center justify-center p-4 z-50"
           >
-            <div className="bg-[#121111] border border-amber-900/30 rounded-2xl p-8 max-w-md w-full relative shadow-2xl">
-              <button onClick={onClose} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-100"><X /></button>
+            <div className="bg-card border border-border rounded-2xl p-8 max-w-md w-full relative shadow-2xl">
+              <button onClick={onClose} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"><X /></button>
               
-              <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mb-6 capitalize">{type === 'login' ? 'Access Vault' : 'Claim Workspace'}</h2>
+              <h2 className="text-2xl font-bold tracking-tight text-foreground mb-6 capitalize">{type === 'login' ? 'Authenticate' : 'Initialize Vault'}</h2>
               
               {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
               
@@ -122,10 +129,28 @@ export default function AuthModal({ isOpen, onClose, type, onSignInSuccess }: Au
                   </div>
                 )}
                 
-                <button type="submit" className="w-full bg-amber-950 text-amber-200 py-3 rounded-lg font-bold border border-amber-800 hover:bg-amber-900 transition-colors">
-                  {type === 'login' ? 'Access' : 'Claim'} Workspace
+                <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-bold border border-primary hover:brightness-110 transition-colors">
+                  {type === 'login' ? 'Authenticate' : 'Initialize Vault'}
                 </button>
               </form>
+              
+              <div className="mt-6 text-center text-sm text-muted-foreground">
+                {type === 'login' ? (
+                  <>
+                    Don't have an account?{' '}
+                    <button type="button" onClick={() => onTypeChange?.('signup')} className="text-primary font-bold hover:underline">
+                      Sign Up
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Already have an account?{' '}
+                    <button type="button" onClick={() => onTypeChange?.('login')} className="text-primary font-bold hover:underline">
+                      Log In
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </motion.div>
         </>
