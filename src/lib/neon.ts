@@ -1,10 +1,24 @@
 import { neon } from '@neondatabase/serverless';
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is not defined');
+let sqlClient: any;
+
+try {
+  if (process.env.DATABASE_URL) {
+    sqlClient = neon(process.env.DATABASE_URL);
+  } else {
+    // Only throw when they try to actually query
+    sqlClient = (strings: any, ...values: any[]) => {
+      console.error('DATABASE_URL environment variable is not defined.');
+      throw new Error('DATABASE_URL environment variable is not defined. Please add it in project settings.');
+    };
+  }
+} catch (e) {
+  sqlClient = (strings: any, ...values: any[]) => {
+    throw new Error(`Failed to initialize Postgres: ${(e as Error).message}`);
+  };
 }
 
-export const sql = neon(process.env.DATABASE_URL);
+export const sql = sqlClient;
 
 export async function initDb() {
   try {

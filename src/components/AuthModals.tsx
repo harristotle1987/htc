@@ -26,7 +26,15 @@ export default function AuthModal({ isOpen, onClose, type, onSignInSuccess, onTy
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
         });
-        const data = await res.json();
+        
+        let data;
+        const text = await res.text();
+        try {
+           data = text ? JSON.parse(text) : {};
+        } catch {
+           setError(`Server Error (${res.status}): ${text.slice(0, 40)}`);
+           return;
+        }
         
         if (res.ok) {
           onSignInSuccess(formData.email);
@@ -38,6 +46,15 @@ export default function AuthModal({ isOpen, onClose, type, onSignInSuccess, onTy
                headers: { 'Content-Type': 'application/json' },
                body: JSON.stringify({ email: formData.email, password: formData.password })
             });
+            let loginData;
+            const loginText = await loginRes.text();
+            try {
+              loginData = loginText ? JSON.parse(loginText) : {};
+            } catch {
+              setError(`Server Error on fallback log in (${loginRes.status})`);
+              return;
+            }
+
             if (loginRes.ok) {
                onSignInSuccess(formData.email);
                onClose();
@@ -49,7 +66,7 @@ export default function AuthModal({ isOpen, onClose, type, onSignInSuccess, onTy
           }
         }
       } catch (e) {
-        setError('Network error connecting to API');
+        setError(`Network error connecting to API: ${(e as Error).message}`);
       }
     } else {
       try {
@@ -58,7 +75,15 @@ export default function AuthModal({ isOpen, onClose, type, onSignInSuccess, onTy
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: formData.email, password: formData.password })
         });
-        const data = await res.json();
+        let data;
+        const text = await res.text();
+        try {
+           data = text ? JSON.parse(text) : {};
+        } catch {
+           setError(`Server Error (${res.status}): ${text.slice(0, 40)}`);
+           return;
+        }
+        
         if (res.ok) {
           onSignInSuccess(formData.email);
           onClose();
@@ -66,7 +91,7 @@ export default function AuthModal({ isOpen, onClose, type, onSignInSuccess, onTy
           setError(data.error || 'Invalid credentials.');
         }
       } catch (e) {
-        setError('Network error connecting to API');
+        setError(`Network error connecting to API: ${(e as Error).message}`);
       }
     }
   };

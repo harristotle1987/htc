@@ -382,9 +382,9 @@ app.post('/api/signup', async (req, res) => {
 
     console.log(`User ${email} signed up and saved to Postgres (isAdmin: ${isAdmin}).`);
     return res.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error saving user to Postgres:', error);
-    return res.status(500).json({ error: 'Failed to save signup' });
+    return res.status(500).json({ error: error.message || 'Failed to save signup' });
   }
 });
 
@@ -409,9 +409,9 @@ app.post('/api/login', async (req, res) => {
     }
 
     return res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, isAdmin: user.is_admin } });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error logging in:', error);
-    return res.status(500).json({ error: 'Login failed' });
+    return res.status(500).json({ error: error.message || 'Login failed' });
   }
 });
 
