@@ -130,34 +130,36 @@ export default function MemberProfile({ user, onLogout, onUpdateUser, onUpgradeT
               <p className="text-lg font-medium font-mono">{user.phone || 'Not provided'}</p>
             </div>
 
-            <div className="p-6 border border-border rounded-3xl bg-card space-y-2 sm:col-span-2 flex flex-col md:flex-row justify-between items-start md:items-center bg-gradient-to-br from-card to-primary/5 gap-4">
-              <div>
-                <div className="flex items-center gap-2 text-primary mb-2">
-                  <Gem className="w-5 h-5" />
-                  <h3 className="text-sm font-bold uppercase tracking-wider">Subscription Tier</h3>
+            {!user.isAdmin && (
+              <div className="p-6 border border-border rounded-3xl bg-card space-y-2 sm:col-span-2 flex flex-col md:flex-row justify-between items-start md:items-center bg-gradient-to-br from-card to-primary/5 gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-primary mb-2">
+                    <Gem className="w-5 h-5" />
+                    <h3 className="text-sm font-bold uppercase tracking-wider">Subscription Tier</h3>
+                  </div>
+                  <p className="text-muted-foreground text-sm">Your current plan</p>
+                  {user.subscriptionExpiresAt && (
+                     <p className={`text-xs mt-2 font-bold ${new Date(user.subscriptionExpiresAt) < new Date() ? 'text-red-500' : 'text-amber-500'}`}>
+                       {new Date(user.subscriptionExpiresAt) < new Date() ? 'Expired on: ' : 'Expiring on: '}
+                       {new Date(user.subscriptionExpiresAt).toLocaleDateString()}
+                     </p>
+                  )}
                 </div>
-                <p className="text-muted-foreground text-sm">Your current plan</p>
-                {user.subscriptionExpiresAt && (
-                   <p className={`text-xs mt-2 font-bold ${new Date(user.subscriptionExpiresAt) < new Date() ? 'text-red-500' : 'text-amber-500'}`}>
-                     {new Date(user.subscriptionExpiresAt) < new Date() ? 'Expired on: ' : 'Expiring on: '}
-                     {new Date(user.subscriptionExpiresAt).toLocaleDateString()}
-                   </p>
-                )}
-              </div>
-              <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-                <div className="px-4 py-2 bg-primary/20 text-primary rounded-full font-bold uppercase tracking-widest text-sm shadow-inner text-center w-full sm:w-auto">
-                  {user.subscription}
+                <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+                  <div className="px-4 py-2 bg-primary/20 text-primary rounded-full font-bold uppercase tracking-widest text-sm shadow-inner text-center w-full sm:w-auto">
+                    {user.subscription}
+                  </div>
+                  {user.subscription !== 'syndicate' && onUpgradeTier && (
+                    <button 
+                      onClick={onUpgradeTier}
+                      className="w-full sm:w-auto px-5 py-2.5 bg-primary hover:brightness-110 text-primary-foreground rounded-full text-sm font-bold uppercase tracking-wider transition-all shadow-md shrink-0"
+                    >
+                      Upgrade Plan
+                    </button>
+                  )}
                 </div>
-                {user.subscription !== 'syndicate' && onUpgradeTier && (
-                  <button 
-                    onClick={onUpgradeTier}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-primary hover:brightness-110 text-primary-foreground rounded-full text-sm font-bold uppercase tracking-wider transition-all shadow-md shrink-0"
-                  >
-                    Upgrade Plan
-                  </button>
-                )}
               </div>
-            </div>
+            )}
             
              <div className="p-6 border border-border rounded-3xl bg-card space-y-2 sm:col-span-2">
               <div className="flex items-center gap-2 text-muted-foreground mb-4">

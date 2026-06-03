@@ -16,7 +16,7 @@ interface DashboardProps {
 
 export default function Dashboard({ metrics, leads = [], loading = false, tier = 'free', monthlyTarget = 50000, isAdmin = false }: DashboardProps) {
   const isBlur = tier === 'free' && !isAdmin;
-  const [cardOrder, setCardOrder] = useState<string[]>(['stc', 'ads', 'cc', 'tlr']);
+  const [cardOrder, setCardOrder] = useState<string[]>(['ads', 'cc']);
 
   useEffect(() => {
     const savedOrder = localStorage.getItem('dashboardCardOrder');
@@ -119,7 +119,7 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
 
   return (
     <div className="w-full shrink-0 z-10 flex flex-col">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 px-4 md:px-6 py-4 w-full border-b bg-background border-border transition-colors duration-300">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-4 px-4 md:px-6 py-4 w-full border-b bg-background border-border transition-colors duration-300">
         <AnimatePresence mode="popLayout">
           {cardOrder.map((id) => {
             const card = cardData[id];

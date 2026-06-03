@@ -47,13 +47,6 @@ export default function App() {
     if (newView !== currentView) {
       setViewHistory(prev => [...prev, currentView]);
       setCurrentView(newView);
-      if (userEmail) {
-        apiFetch(`/api/users/${userEmail}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lastPage: newView })
-        }).catch(err => console.error('Error saving last page', err));
-      }
     }
   };
 
@@ -62,6 +55,8 @@ export default function App() {
       const prevView = viewHistory[viewHistory.length - 1];
       setViewHistory(prev => prev.slice(0, -1));
       setCurrentView(prevView);
+    } else {
+      setCurrentView('pipeline');
     }
   };
 
@@ -189,9 +184,6 @@ export default function App() {
                       avatarUrl: u.avatarUrl,
                       lastPage: u.lastPage
                   });
-                  if (u.lastPage) {
-                    setCurrentView(u.lastPage as ViewType);
-                  }
                 } else {
                    handleLogout();
                 }
@@ -470,12 +462,16 @@ export default function App() {
 
   if (!isAuthenticated) {
     if (userEmail && is2FAEnabled) {
-      return <Login2FA onSuccess={() => setIsAuthenticated(true)} onBack={() => { setUserEmail(''); setIs2FAEnabled(false); }} />;
+      return <Login2FA onSuccess={() => { setIsAuthenticated(true); setCurrentView('pipeline'); setViewHistory([]); }} onBack={() => { setUserEmail(''); setIs2FAEnabled(false); }} />;
     }
     return <LandingPage onSignInSuccess={(email, tier) => {
       setUserEmail(email);
       if (tier) setPendingTier(tier);
-      if (!is2FAEnabled) setIsAuthenticated(true)
+      if (!is2FAEnabled) {
+        setIsAuthenticated(true);
+        setCurrentView('pipeline');
+        setViewHistory([]);
+      }
     }} />;
   }
 
@@ -495,7 +491,7 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0 bg-gradient-to-br from-background via-accent/20 to-background dark:via-background dark:to-card/50">
         <header className="border-b border-border bg-background/80 backdrop-blur-xl px-4 md:px-8 py-4 flex items-center justify-between h-20 shrink-0 z-10 transition-all duration-300">
           <div className="flex items-center gap-3">
-            {viewHistory.length > 0 && (
+            {currentView !== 'pipeline' && (
               <button 
                 onClick={goBack} 
                 className="mr-2 p-2 rounded-full hover:bg-muted/50 border border-transparent hover:border-border transition-colors text-muted-foreground hover:text-foreground"
@@ -827,37 +823,6 @@ export default function App() {
                           />
                         </div>
                       </div>
-
-                      <div className="h-px bg-border w-full"></div>
-
-                      <h3 className="text-sm md:text-base font-bold flex items-center gap-2">
-                        <Target className="w-4 h-4 text-primary" />
-                        Performance Analytics
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="p-4 bg-card/60 border border-border rounded-lg">
-                          <p className="text-[10px] font-bold text-muted tracking-widest uppercase">Avg Talk to Listen Ratio</p>
-                          <p className="text-2xl font-bold mt-1 text-primary">
-                            {(() => {
-                              const leadsWithRatio = leads.filter(l => (l.talkToListenRatio ?? 0) > 0);
-                              if (leadsWithRatio.length === 0) return '0%';
-                              const avg = leadsWithRatio.reduce((acc, curr) => acc + (curr.talkToListenRatio || 0), 0) / leadsWithRatio.length;
-                              return `${Math.round(avg)}%`;
-                            })()}
-                          </p>
-                        </div>
-                        <div className="p-4 bg-card/60 border border-border rounded-lg">
-                          <p className="text-[10px] font-bold text-muted tracking-widest uppercase">Show-to-Close Rate</p>
-                          <p className="text-2xl font-bold mt-1 text-primary">
-                            {(() => {
-                              const shows = leads.filter(l => l.stage !== 'Discovery Scheduled' && l.stage !== 'Nurture / Long-Term').length;
-                              const closes = leads.filter(l => l.stage === 'Closed-Won').length;
-                              if (shows === 0) return '0%';
-                              return `${Math.round((closes / shows) * 100)}%`;
-                            })()}
-                          </p>
-                        </div>
-                      </div>
                     </motion.div>
 
                     <motion.div 
@@ -889,6 +854,20 @@ export default function App() {
               </motion.div>
             )}
 
+            {currentView === 'terms' && (
+              <motion.div 
+                key="terms"
+                variants={pageVariants}
+                initial="initial"
+                animate="in"
+                exit="out"
+                transition={pageTransition}
+                className="w-full"
+              >
+                <TermsOfService onBack={goBack} />
+              </motion.div>
+            )}
+
             {currentView === 'privacy' && (
               <motion.div 
                 key="privacy"
@@ -899,7 +878,7 @@ export default function App() {
                 transition={pageTransition}
                 className="w-full"
               >
-                <PrivacyPolicy onBack={() => handleViewChange('pipeline')} />
+                <PrivacyPolicy onBack={goBack} />
               </motion.div>
             )}
 
