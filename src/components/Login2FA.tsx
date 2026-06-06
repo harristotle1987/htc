@@ -20,11 +20,19 @@ export default function Login2FA({ onSuccess, onBack }: Login2FAProps) {
     setError('');
 
     try {
-      // Simulate validation (accept any token of 6 digits for the static demo)
-      if (token.length >= 6) {
+      const email = localStorage.getItem('userEmail');
+      const res = await fetch('/api/auth/2fa/verify-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, token })
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        localStorage.removeItem('loginRequires2FA');
         onSuccess();
       } else {
-        setError('Invalid 2FA token');
+        setError(data.error || 'Invalid 2FA token');
       }
     } catch (err) {
       setError('An error occurred during verification');

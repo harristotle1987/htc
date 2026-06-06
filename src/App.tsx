@@ -15,6 +15,7 @@ import LandingPage from './components/LandingPage';
 import PricingMatrix from './components/PricingMatrix';
 import CsvImporter from './components/CsvImporter';
 import AdminPanel from './components/AdminPanel';
+import SchedulingBoard from './components/SchedulingBoard';
 import BottomNav from './components/BottomNav';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
@@ -167,11 +168,13 @@ export default function App() {
         if (emailToFetch) {
             setIsAuthChecking(true);
             setIsWorkspaceConnected(true);
+            let currentUser2FA = false;
             apiFetch(`/api/users/${emailToFetch}`)
               .then(res => res.json())
               .then(data => {
                 const u = data.user;
                 if (u) {
+                  currentUser2FA = !!u.is2FAEnabled;
                   setTier(u.subscription);
                   setCurrentUser({
                       id: u.id,
@@ -191,7 +194,7 @@ export default function App() {
               .catch(err => {
                 console.error("Failed to fetch user details:", err);
               })
-              .finally(() => checkAuthStatus());
+              .finally(() => checkAuthStatus(currentUser2FA));
         } else {
             setIsWorkspaceConnected(false);
             if (localStorage.getItem('isAuthenticated') === 'true') {
@@ -246,11 +249,13 @@ export default function App() {
     setTier(null);
   };
 
-  const checkAuthStatus = async () => {
+  const checkAuthStatus = async (user2FAEnabled?: boolean) => {
     try {
-      const stored2FAStatus = localStorage.getItem('is2FAEnabled') === 'true';
-      setIs2FAEnabled(stored2FAStatus);
-      if (!stored2FAStatus) {
+      if (user2FAEnabled === undefined) {
+        user2FAEnabled = localStorage.getItem('loginRequires2FA') === 'true';
+      }
+      setIs2FAEnabled(!!user2FAEnabled);
+      if (!user2FAEnabled) {
         setIsAuthenticated(true);
       }
     } catch (err) {
@@ -462,12 +467,16 @@ export default function App() {
 
   if (!isAuthenticated) {
     if (userEmail && is2FAEnabled) {
-      return <Login2FA onSuccess={() => { setIsAuthenticated(true); setCurrentView('pipeline'); setViewHistory([]); }} onBack={() => { setUserEmail(''); setIs2FAEnabled(false); }} />;
+      return <Login2FA onSuccess={() => { setIsAuthenticated(true); setCurrentView('pipeline'); setViewHistory([]); }} onBack={() => { setUserEmail(''); setIs2FAEnabled(false); localStorage.removeItem('loginRequires2FA'); }} />;
     }
-    return <LandingPage onSignInSuccess={(email, tier) => {
+    return <LandingPage onSignInSuccess={(email, tier, require2FA) => {
       setUserEmail(email);
       if (tier) setPendingTier(tier);
-      if (!is2FAEnabled) {
+      if (require2FA) {
+        localStorage.setItem('loginRequires2FA', 'true');
+        setIs2FAEnabled(true);
+      } else {
+        localStorage.removeItem('loginRequires2FA');
         setIsAuthenticated(true);
         setCurrentView('pipeline');
         setViewHistory([]);
@@ -584,6 +593,20 @@ export default function App() {
                     <Board leads={leads} onDragEnd={onDragEnd} onLeadClick={setSelectedLead} isReadOnly={isReadOnly} />
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {currentView === 'scheduling' && (
+              <motion.div 
+                key="scheduling"
+                variants={pageVariants}
+                initial="initial"
+                animate="in"
+                exit="out"
+                transition={pageTransition}
+                className="w-full flex-1"
+              >
+                <SchedulingBoard />
               </motion.div>
             )}
 

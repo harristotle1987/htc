@@ -58,6 +58,7 @@ export async function initDb() {
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS amount_paid NUMERIC`;
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS payment_confirmed BOOLEAN DEFAULT FALSE`;
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS talk_to_listen_ratio NUMERIC`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS booking_date TIMESTAMP`;
 
     // Seed mock data
     const existingLeads = await sql`SELECT count(*) FROM leads`;
@@ -247,6 +248,8 @@ export async function initDb() {
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS paystack_reference TEXT`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS monnify_reference TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_secret TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN DEFAULT FALSE`;
 
     // 5. Logs Table (stores application activity logs)
     await sql`

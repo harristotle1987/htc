@@ -69,6 +69,7 @@ export interface Lead {
   amountPaid?: number;
   paymentConfirmed?: boolean;
   talkToListenRatio?: number;
+  bookingDate?: string;
   stakeholders?: Stakeholder[];
   tasks?: Task[];
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Lead, Task } from '../types';
-import { X, Save, Trash2, Edit3, Target, Crosshair, Loader2, ChevronUp, ChevronDown, GripVertical, CheckCircle2 } from 'lucide-react';
+import { X, Save, Trash2, Edit3, Target, Crosshair, Loader2, ChevronUp, ChevronDown, GripVertical, CheckCircle2, Pin } from 'lucide-react';
 import InfluenceMap from './InfluenceMap';
 import TaskList from './TaskList';
 import { motion, AnimatePresence } from 'motion/react';
@@ -36,11 +36,25 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete, isReadOnl
     closerPercentage: lead.closerPercentage || 0,
     amountPaid: lead.amountPaid || 0,
     paymentConfirmed: lead.paymentConfirmed || false,
-    talkToListenRatio: lead.talkToListenRatio || 0
+    talkToListenRatio: lead.talkToListenRatio || 0,
+    bookingDate: lead.bookingDate ? new Date(lead.bookingDate).toISOString().slice(0, 16) : ''
   });
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [activeTab, setActiveTab] = useState<'pipeline' | 'tasks' | 'influence'>('pipeline');
+  const [quickNote, setQuickNote] = useState('');
+
+  const handlePinNote = () => {
+    if (!quickNote.trim()) return;
+    const timestamp = new Date().toLocaleString(undefined, { 
+      year: 'numeric', month: 'short', day: 'numeric', 
+      hour: '2-digit', minute: '2-digit' 
+    });
+    const entry = `📌 [${timestamp}] - ${quickNote}`;
+    const newNotes = formData.notes ? `${formData.notes}\n\n${entry}` : entry;
+    setFormData(prev => ({ ...prev, notes: newNotes }));
+    setQuickNote('');
+  };
 
   useEffect(() => {
     if (formData.notes === lead.notes) {
@@ -137,6 +151,17 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete, isReadOnl
                 <option value="Closed-Won">Closed-Won</option>
                 <option value="Nurture / Long-Term">Nurture / Long-Term</option>
               </select>
+
+              <div className="flex items-center gap-2 bg-background/80 border border-border text-muted text-xs px-3 py-1.5 rounded-lg hover:border-border/80 transition-colors">
+                <span className="font-bold tracking-wider uppercase">Booking:</span>
+                <input disabled={isReadOnly}
+                  type="datetime-local"
+                  name="bookingDate"
+                  value={formData.bookingDate}
+                  onChange={handleChange}
+                  className="bg-transparent border-none text-muted focus:outline-none w-auto"
+                />
+              </div>
             </div>
           </div>
           <button onClick={onClose} className="p-2.5 text-muted hover:text-foreground transition-all rounded-full bg-card hover:bg-muted/10 border border-border hover:scale-105 active:scale-95 shrink-0 z-20">
@@ -181,6 +206,26 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete, isReadOnl
                       {saveStatus === 'saving' && <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin"/> Saving Notes...</span>}
                       {saveStatus === 'saved' && <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3"/> Saved</span>}
                     </div>
+
+                    <div className="mb-4 bg-background/50 border border-border p-3 rounded-xl flex flex-col gap-2 shadow-inner">
+                      <textarea
+                        disabled={isReadOnly}
+                        value={quickNote}
+                        onChange={(e) => setQuickNote(e.target.value)}
+                        placeholder="Type a quick insight or update to pin... (e.g., 'Met with decision maker')"
+                        className="w-full bg-transparent border-none p-0 text-sm focus:outline-none focus:ring-0 resize-none custom-scrollbar min-h-[40px] text-foreground/90"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          onClick={handlePinNote}
+                          disabled={isReadOnly || !quickNote.trim()}
+                          className="bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-primary-foreground px-3 py-1.5 rounded-lg text-[10px] uppercase font-bold tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        >
+                          <Pin className="w-3 h-3" /> Pin Note
+                        </button>
+                      </div>
+                    </div>
+
                     <textarea disabled={isReadOnly} 
                       name="notes"
                       value={formData.notes}

@@ -49,7 +49,8 @@ function mapPostgresLead(row: any) {
     closerPercentage: row.closer_percentage ? Number(row.closer_percentage) : 0,
     amountPaid: row.amount_paid ? Number(row.amount_paid) : 0,
     paymentConfirmed: !!row.payment_confirmed,
-    talkToListenRatio: row.talk_to_listen_ratio ? Number(row.talk_to_listen_ratio) : 0
+    talkToListenRatio: row.talk_to_listen_ratio ? Number(row.talk_to_listen_ratio) : 0,
+    bookingDate: row.booking_date ? new Date(row.booking_date).toISOString() : undefined
   };
 }
 
@@ -93,6 +94,7 @@ function runInBackground(promise: Promise<any>, description: string) {
 // API Routes
 // Auth Middleware
 const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.log(`[API Request] Method=${req.method} URL=${req.originalUrl} Path=${req.path}`);
   const email = req.headers['x-user-email'] as string;
   
   if (!email) {
@@ -142,12 +144,22 @@ app.post('/api/auth/2fa/verify', async (req, res) => {
   });
   
   if (verified) {
-    // In a real app, update user in DB here
-    // await sql`UPDATE users SET two_factor_secret = ${secret}, two_factor_enabled = true WHERE email = ${email}`;
+    const userEmail = email || (req as any).userEmail || req.headers['x-user-email'];
+    if (userEmail) {
+      await sql`UPDATE users SET two_factor_secret = ${secret}, two_factor_enabled = true WHERE email = ${userEmail}`;
+    }
     res.json({ success: true });
   } else {
     res.status(400).json({ error: 'Invalid token' });
   }
+});
+
+
+// GET /api/cron/calcom-sync - Vercel Cron Job endpoint
+app.get('/api/cron/calcom-sync', async (req, res) => {
+  console.log('Running Cal.com CRON sync...');
+  await syncCalcomEvents();
+  res.json({ success: true, message: 'Cal.com sync completed' });
 });
 
 app.get('/api/leads', async (req, res) => {
@@ -300,14 +312,14 @@ app.delete('/api/metrics/:id', async (req, res) => {
 app.post('/api/leads', async (req, res) => {
   const id = `L${Date.now()}`;
   const userEmail = (req as any).userEmail;
-  const { name, company, dealSize, stage, callType, bleedingNeck, emotionalAnchor, coi, futureIdentity, budgetAnchor, nextFollowUp, notes, tasks, closerId, closerPercentage, amountPaid, paymentConfirmed, talkToListenRatio } = req.body;
+  const { name, company, dealSize, stage, callType, bleedingNeck, emotionalAnchor, coi, futureIdentity, budgetAnchor, nextFollowUp, notes, tasks, closerId, closerPercentage, amountPaid, paymentConfirmed, talkToListenRatio, bookingDate } = req.body;
 
   try {
     await sql`
       INSERT INTO leads (
         id, user_email, name, company, deal_size, stage, call_type, bleeding_neck, 
         emotional_anchor, coi, future_identity, budget_anchor, next_follow_up, notes, tasks,
-        closer_id, closer_percentage, amount_paid, payment_confirmed, talk_to_listen_ratio
+        closer_id, closer_percentage, amount_paid, payment_confirmed, talk_to_listen_ratio, booking_date
       ) VALUES (
         ${id}, 
         ${userEmail || ''},
@@ -328,7 +340,8 @@ app.post('/api/leads', async (req, res) => {
         ${closerPercentage || 0},
         ${amountPaid || 0},
         ${paymentConfirmed || false},
-        ${talkToListenRatio || 0}
+        ${talkToListenRatio || 0},
+        ${bookingDate || null}
       )
     `;
     console.log(`Lead ${id} saved to Neon Postgres.`);
@@ -408,7 +421,7 @@ app.post('/api/login', async (req, res) => {
       if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    return res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, isAdmin: user.is_admin } });
+    return res.json({ success: true, require2FA: !!user.two_factor_enabled, user: { id: user.id, email: user.email, name: user.name, isAdmin: user.is_admin } });
   } catch (error: any) {
     console.error('Error logging in:', error);
     return res.status(500).json({ error: error.message || 'Login failed' });
@@ -432,7 +445,8 @@ app.get('/api/users/:email', async (req, res) => {
           subscriptionExpiresAt: user.subscription_expires_at,
           isAdmin: !!user.is_admin,
           avatarUrl: user.avatar_url,
-          lastPage: user.last_page
+          lastPage: user.last_page,
+          is2FAEnabled: !!user.two_factor_enabled
         } 
       });
     } else {
@@ -773,7 +787,8 @@ app.patch('/api/leads/:id', async (req, res) => {
         closerPercentage: updates.closerPercentage !== undefined ? updates.closerPercentage : current.closer_percentage,
         amountPaid: updates.amountPaid !== undefined ? updates.amountPaid : current.amount_paid,
         paymentConfirmed: updates.paymentConfirmed !== undefined ? updates.paymentConfirmed : current.payment_confirmed,
-        talkToListenRatio: updates.talkToListenRatio !== undefined ? updates.talkToListenRatio : current.talk_to_listen_ratio
+        talkToListenRatio: updates.talkToListenRatio !== undefined ? updates.talkToListenRatio : current.talk_to_listen_ratio,
+        bookingDate: updates.bookingDate !== undefined ? updates.bookingDate : current.booking_date
       };
 
       await sql`
@@ -795,7 +810,8 @@ app.patch('/api/leads/:id', async (req, res) => {
           closer_percentage = ${merged.closerPercentage},
           amount_paid = ${merged.amountPaid},
           payment_confirmed = ${merged.paymentConfirmed},
-          talk_to_listen_ratio = ${merged.talkToListenRatio}
+          talk_to_listen_ratio = ${merged.talkToListenRatio},
+          booking_date = ${merged.bookingDate}
         WHERE id = ${id}
       `;
       console.log(`Lead ${id} updated in Neon Postgres.`);
@@ -940,95 +956,67 @@ function saveUser(user: User) {
   }
 }
 
-// GET /api/2fa/status
-app.get('/api/2fa/status', (req, res) => {
-  const user = getUser();
-  res.json({ enabled: user.twoFactorEnabled });
+// POST /api/auth/2fa/disable
+app.post('/api/auth/2fa/disable', async (req, res) => {
+  const { token, email: reqEmail } = req.body;
+  const email = (req as any).userEmail || req.headers['x-user-email'] || reqEmail;
+
+  try {
+    const users = await sql`SELECT * FROM users WHERE email = ${email}`;
+    if (!users || users.length === 0) return res.status(404).json({ error: 'User not found' });
+    const user = users[0];
+
+    if (!user.two_factor_enabled || !user.two_factor_secret) {
+      return res.status(400).json({ success: false, error: '2FA is not enabled' });
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: user.two_factor_secret,
+      encoding: 'base32',
+      token: token
+    });
+    
+    if (verified) {
+      await sql`UPDATE users SET two_factor_enabled = false, two_factor_secret = NULL WHERE email = ${email}`;
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ success: false, error: 'Invalid verification code' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to disable 2FA' });
+  }
 });
 
-// POST /api/2fa/generate
-app.post('/api/2fa/generate', async (req, res) => {
-  const secret = speakeasy.generateSecret({
-    name: 'Aegis Vault'
-  });
+// POST /api/auth/2fa/verify-login
+app.post('/api/auth/2fa/verify-login', async (req, res) => {
+  const { token, email } = req.body;
   
-  if (!secret.otpauth_url) {
-     return res.status(500).json({ error: 'Failed to generate secret' });
+  if (!email) {
+    return res.status(400).json({ error: 'Email required' });
   }
 
   try {
-    const dataUrl = await QRCode.toDataURL(secret.otpauth_url);
-    res.json({
-      secret: secret.base32,
-      qrCode: dataUrl,
+    const users = await sql`SELECT * FROM users WHERE email = ${email}`;
+    if (!users || users.length === 0) return res.status(404).json({ error: 'User not found' });
+    const user = users[0];
+
+    if (!user.two_factor_enabled || !user.two_factor_secret) {
+      return res.json({ success: true }); // No 2FA enforced
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: user.two_factor_secret,
+      encoding: 'base32',
+      token: token
     });
+    
+    if (verified) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ success: false, error: 'Invalid 2FA token' });
+    }
   } catch (err) {
-    res.status(500).json({ error: 'Failed to generate QR code' });
-  }
-});
-
-// POST /api/2fa/verify-setup
-app.post('/api/2fa/verify-setup', (req, res) => {
-  const { token, secret } = req.body;
-  const verified = speakeasy.totp.verify({
-    secret: secret,
-    encoding: 'base32',
-    token: token
-  });
-  
-  if (verified) {
-    const user = getUser();
-    user.twoFactorEnabled = true;
-    user.twoFactorSecret = secret;
-    saveUser(user);
-    res.json({ success: true });
-  } else {
-    res.status(400).json({ success: false, error: 'Invalid verification code' });
-  }
-});
-
-// POST /api/2fa/disable
-app.post('/api/2fa/disable', (req, res) => {
-  const { token } = req.body;
-  const user = getUser();
-  if (!user.twoFactorEnabled || !user.twoFactorSecret) {
-    return res.status(400).json({ success: false, error: '2FA is not enabled' });
-  }
-
-  const verified = speakeasy.totp.verify({
-    secret: user.twoFactorSecret,
-    encoding: 'base32',
-    token: token
-  });
-  
-  if (verified) {
-    user.twoFactorEnabled = false;
-    user.twoFactorSecret = null;
-    saveUser(user);
-    res.json({ success: true });
-  } else {
-    res.status(400).json({ success: false, error: 'Invalid verification code' });
-  }
-});
-
-// POST /api/2fa/verify-login
-app.post('/api/2fa/verify-login', (req, res) => {
-  const { token } = req.body;
-  const user = getUser();
-  if (!user.twoFactorEnabled || !user.twoFactorSecret) {
-    return res.json({ success: true }); // No 2FA enforced
-  }
-
-  const verified = speakeasy.totp.verify({
-    secret: user.twoFactorSecret,
-    encoding: 'base32',
-    token: token
-  });
-  
-  if (verified) {
-    res.json({ success: true });
-  } else {
-    res.status(400).json({ success: false, error: 'Invalid 2FA token' });
+    res.status(500).json({ error: 'Verification failed' });
   }
 });
 
@@ -1063,6 +1051,37 @@ async function ensureSovereignAdmin() {
   }
 }
 
+async function syncCalcomEvents() {
+  if (!process.env.CALCOM_API_KEY) return;
+
+  try {
+    // Get bookings (events) from Cal.com, you can optionally filter by status
+    const eventsRes = await fetch(`https://api.cal.com/v1/bookings?apiKey=${process.env.CALCOM_API_KEY}`);
+    const eventsData = await eventsRes.json();
+    if (!eventsRes.ok || !eventsData.bookings) return;
+    
+    for (const booking of eventsData.bookings) {
+      if (booking.status === 'ACCEPTED' || booking.status === 'PENDING') {
+        const attendees = booking.attendees || [];
+        for (const attendee of attendees) {
+           const name = attendee.name || '';
+           // Match with leads in DB
+           const dbLeads = await sql`SELECT * FROM leads WHERE name ILIKE ${'%' + name + '%'}`;
+           for (const dbLead of dbLeads) {
+               if (dbLead.stage === 'Nurture / Long-Term') {
+                    const eventDate = booking.startTime ? booking.startTime.split('T')[0] : new Date().toISOString().split('T')[0];
+                    await sql`UPDATE leads SET stage = 'Discovery Scheduled', next_follow_up = ${eventDate} WHERE id = ${dbLead.id}`;
+                   console.log(`Auto-mapped Cal.com event for ${name} to lead ${dbLead.id}`);
+               }
+           }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error syncing Cal.com events:', error);
+  }
+}
+
 async function startServer() {
   // Initialize Neon Postgres schemas safely before booting
   try {
@@ -1087,9 +1106,22 @@ async function startServer() {
     });
   }
 
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('Unhandled Server Error:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  });
+
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    
+    // Start Cal.com background sync task (runs every 5 minutes)
+    syncCalcomEvents();
+    setInterval(syncCalcomEvents, 5 * 60 * 1000);
   });
 }
 
-startServer();
+export default app;
+
+if (process.env.NODE_ENV !== 'production' || (!process.env.VERCEL && process.env.NODE_ENV === 'production')) {
+  startServer();
+}

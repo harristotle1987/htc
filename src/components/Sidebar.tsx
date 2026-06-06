@@ -1,8 +1,8 @@
 import React from 'react';
-import { Target, LayoutDashboard, Users, Shield, Settings, ChevronUp, ChevronDown, User } from 'lucide-react';
+import { Target, LayoutDashboard, Users, Shield, Settings, ChevronUp, ChevronDown, User, Calendar } from 'lucide-react';
 import { motion } from 'motion/react';
 
-export type ViewType = 'pipeline' | 'contacts' | 'security' | 'admin' | 'privacy' | 'terms' | 'profile';
+export type ViewType = 'pipeline' | 'contacts' | 'scheduling' | 'security' | 'admin' | 'privacy' | 'terms' | 'profile';
 
 interface SidebarProps {
   currentView: ViewType;
@@ -47,6 +47,13 @@ export default function Sidebar({ currentView, onViewChange, isAdmin }: SidebarP
           label="Contacts" 
           active={currentView === 'contacts'} 
           onClick={() => onViewChange('contacts')} 
+        />
+        <NavItem 
+          id="scheduling"
+          icon={<Calendar size={18} />} 
+          label="Scheduling" 
+          active={currentView === 'scheduling'} 
+          onClick={() => onViewChange('scheduling')} 
         />
         <NavItem 
           id="security"

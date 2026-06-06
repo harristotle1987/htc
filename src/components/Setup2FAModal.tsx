@@ -20,10 +20,11 @@ export default function Setup2FAModal({ onClose, onSuccess }: Setup2FAProps) {
   useEffect(() => {
     const generateToken = async () => {
       try {
+        const email = localStorage.getItem('userEmail') || 'user@example.com';
         const response = await apiFetch('/api/auth/2fa/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: 'user@example.com' }) // Replace with actual user email
+          body: JSON.stringify({ email })
         });
         const data = await response.json();
         setQrCode(data.qrCodeDataUrl);
@@ -43,10 +44,11 @@ export default function Setup2FAModal({ onClose, onSuccess }: Setup2FAProps) {
     setError('');
 
     try {
+      const email = localStorage.getItem('userEmail') || 'user@example.com';
       const response = await apiFetch('/api/auth/2fa/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret, token, email: 'user@example.com' }) // Replace with actual user email
+        body: JSON.stringify({ secret, token, email })
       });
       
       if (!response.ok) {

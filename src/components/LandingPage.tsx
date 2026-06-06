@@ -7,7 +7,7 @@ import TermsOfService from './TermsOfService';
 import PricingMatrix from './PricingMatrix';
 
 interface LandingPageProps {
-  onSignInSuccess: (email: string, pendingTier?: string | null) => void;
+  onSignInSuccess: (email: string, pendingTier?: string | null, require2FA?: boolean) => void;
 }
 
 const GenericPage = ({ title, onBack }: { title: string, onBack: () => void }) => {
@@ -80,8 +80,8 @@ export default function LandingPage({ onSignInSuccess }: LandingPageProps) {
     setModalType('signup');
   };
 
-  const handleAuthSuccess = (email: string) => {
-    onSignInSuccess(email, selectedTier);
+  const handleAuthSuccess = (email: string, require2FA?: boolean) => {
+    onSignInSuccess(email, selectedTier, require2FA);
   };
 
   const faqs = [

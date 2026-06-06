@@ -7,7 +7,7 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   type: 'login' | 'signup';
-  onSignInSuccess: (email: string) => void;
+  onSignInSuccess: (email: string, require2FA?: boolean) => void;
   onTypeChange?: (type: 'login' | 'signup') => void;
 }
 
@@ -56,7 +56,7 @@ export default function AuthModal({ isOpen, onClose, type, onSignInSuccess, onTy
             }
 
             if (loginRes.ok) {
-               onSignInSuccess(formData.email);
+               onSignInSuccess(formData.email, loginData.require2FA);
                onClose();
             } else {
                setError('Account exists, but password was incorrect.');
@@ -85,7 +85,7 @@ export default function AuthModal({ isOpen, onClose, type, onSignInSuccess, onTy
         }
         
         if (res.ok) {
-          onSignInSuccess(formData.email);
+          onSignInSuccess(formData.email, data.require2FA);
           onClose();
         } else {
           setError(data.error || 'Invalid credentials.');

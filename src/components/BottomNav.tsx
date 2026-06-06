@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewType } from './Sidebar';
-import { LayoutDashboard, Users, Shield, Settings, User } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, Settings, User, Calendar } from 'lucide-react';
 
 interface BottomNavProps {
   currentView: ViewType;
@@ -12,6 +12,7 @@ export default function BottomNav({ currentView, onViewChange, isAdmin }: Bottom
   const items = [
     { id: 'pipeline', label: 'Pipeline', icon: <LayoutDashboard size={20} /> },
     { id: 'contacts', label: 'Contacts', icon: <Users size={20} /> },
+    { id: 'scheduling', label: 'Scheduling', icon: <Calendar size={20} /> },
     { id: 'security', label: 'Security', icon: <Shield size={20} /> },
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: <Settings size={20} /> }] : []),
     { id: 'profile', label: 'Profile', icon: <User size={20} /> },
