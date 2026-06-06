@@ -154,14 +154,6 @@ app.post('/api/auth/2fa/verify', async (req, res) => {
   }
 });
 
-
-// GET /api/cron/calcom-sync - Vercel Cron Job endpoint
-app.get('/api/cron/calcom-sync', async (req, res) => {
-  console.log('Running Cal.com CRON sync...');
-  await syncCalcomEvents();
-  res.json({ success: true, message: 'Cal.com sync completed' });
-});
-
 app.get('/api/leads', async (req, res) => {
   try {
     let dbLeads;
