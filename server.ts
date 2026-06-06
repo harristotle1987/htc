@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { initDb, sql } from './src/lib/neon';
 import dotenv from 'dotenv';
 import speakeasy from 'speakeasy';
@@ -28,6 +27,31 @@ io.on('connection', (socket) => {
 });
 
 app.use(express.json());
+
+let dbInitialized = false;
+let dbInitializationPromise: Promise<void> | null = null;
+
+async function ensureDbInitialized() {
+  if (dbInitialized) return;
+  if (!dbInitializationPromise) {
+    dbInitializationPromise = (async () => {
+      try {
+        await initDb();
+        await ensureSovereignAdmin();
+        dbInitialized = true;
+        console.log('Neon Postgres schema initialization completed successfully.');
+      } catch (err) {
+        console.error('Failed to initialize Neon Postgres:', err);
+      }
+    })();
+  }
+  await dbInitializationPromise;
+}
+
+app.use(async (req, res, next) => {
+  await ensureDbInitialized();
+  next();
+});
 
 function mapPostgresLead(row: any) {
   return {
@@ -1076,16 +1100,11 @@ async function syncCalcomEvents() {
 
 async function startServer() {
   // Initialize Neon Postgres schemas safely before booting
-  try {
-    await initDb();
-    await ensureSovereignAdmin();
-    console.log('Neon Postgres schema initialization completed successfully.');
-  } catch (err) {
-    console.error('Failed to initialize Neon Postgres:', err);
-  }
+  await ensureDbInitialized();
 
   if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
+    const { createServer } = await import('vite');
+    const vite = await createServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });

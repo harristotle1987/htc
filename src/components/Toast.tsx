@@ -3,6 +3,10 @@ import { motion, AnimatePresence } from 'motion/react';
 
 let addToast: (message: string) => void = () => {};
 
+export function showToast(message: string) {
+  addToast(message);
+}
+
 export function useToast() {
   return addToast;
 }
