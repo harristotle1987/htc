@@ -459,6 +459,7 @@ app.get('/api/users/:email', async (req, res) => {
           email: user.email,
           phone: user.phone,
           subscription: user.subscription || 'free',
+          subscriptionStartDate: user.subscription_start_date,
           subscriptionExpiresAt: user.subscription_expires_at,
           isAdmin: !!user.is_admin,
           avatarUrl: user.avatar_url,
@@ -483,6 +484,7 @@ app.get('/api/users/:email', async (req, res) => {
           email: email,
           phone: '',
           subscription: 'unassigned',
+          subscriptionStartDate: null,
           subscriptionExpiresAt: null,
           isAdmin: isAdmin,
           avatarUrl: '',
@@ -519,7 +521,9 @@ app.patch('/api/users/:email', async (req, res) => {
     const lastPage = updates.lastPage !== undefined ? updates.lastPage : (current.last_page ?? null);
     
     let subscriptionExpiresAt = current.subscription_expires_at ?? null;
+    let subscriptionStartDate = current.subscription_start_date ?? null;
     if (updates.subscription && updates.subscription !== 'free' && updates.subscription !== 'unassigned' && updates.billing_cycle) {
+       subscriptionStartDate = new Date().toISOString();
        const expiration = new Date();
        if (updates.billing_cycle === 'monthly') expiration.setMonth(expiration.getMonth() + 1);
        if (updates.billing_cycle === 'quarterly') expiration.setMonth(expiration.getMonth() + 3);
@@ -527,6 +531,7 @@ app.patch('/api/users/:email', async (req, res) => {
        subscriptionExpiresAt = expiration.toISOString();
     } else if (updates.subscription === 'free' || updates.subscription === 'unassigned') {
        subscriptionExpiresAt = null;
+       subscriptionStartDate = null;
     }
 
     let passHash = current.password_hash;
@@ -545,6 +550,7 @@ app.patch('/api/users/:email', async (req, res) => {
         paystack_reference = ${paystackRef},
         monnify_reference = ${monnifyRef},
         last_page = ${lastPage},
+        subscription_start_date = ${subscriptionStartDate},
         subscription_expires_at = ${subscriptionExpiresAt}
       WHERE email = ${email}
     `;

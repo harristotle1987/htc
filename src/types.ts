@@ -88,6 +88,7 @@ export interface User {
   email: string;
   phone: string;
   subscription: string;
+  subscriptionStartDate?: string | null;
   subscriptionExpiresAt?: string | null;
   isAdmin: boolean;
   avatarUrl?: string;

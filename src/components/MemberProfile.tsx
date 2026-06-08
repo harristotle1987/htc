@@ -138,8 +138,13 @@ export default function MemberProfile({ user, onLogout, onUpdateUser, onUpgradeT
                     <h3 className="text-sm font-bold uppercase tracking-wider">Subscription Tier</h3>
                   </div>
                   <p className="text-muted-foreground text-sm">Your current plan</p>
+                  {user.subscriptionStartDate && (
+                     <p className="text-xs text-muted-foreground mt-2 font-mono">
+                       Subscribed on: {new Date(user.subscriptionStartDate).toLocaleDateString()}
+                     </p>
+                  )}
                   {user.subscriptionExpiresAt && (
-                     <p className={`text-xs mt-2 font-bold ${new Date(user.subscriptionExpiresAt) < new Date() ? 'text-red-500' : 'text-amber-500'}`}>
+                     <p className={`text-xs mt-1 font-bold ${new Date(user.subscriptionExpiresAt) < new Date() ? 'text-red-500' : 'text-amber-500'}`}>
                        {new Date(user.subscriptionExpiresAt) < new Date() ? 'Expired on: ' : 'Expiring on: '}
                        {new Date(user.subscriptionExpiresAt).toLocaleDateString()}
                      </p>

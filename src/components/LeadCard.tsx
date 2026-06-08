@@ -1,16 +1,18 @@
 import React from 'react';
-import { Lead } from '../types';
+import { Lead, Stage } from '../types';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { DollarSign, Clock, AlertTriangle, Zap, GripHorizontal, Mail, Phone } from 'lucide-react';
+import { DollarSign, Clock, AlertTriangle, Zap, GripHorizontal, Mail, Phone, ChevronLeft, ChevronRight } from 'lucide-react';
+import { STAGES } from './Board';
 
 interface LeadCardProps {
   key?: React.Key;
   lead: Lead;
   onClick: (lead: Lead) => void;
+  onMove?: (leadId: string, newStage: Stage) => void;
 }
 
-export default function LeadCard({ lead, onClick }: LeadCardProps) {
+export default function LeadCard({ lead, onClick, onMove }: LeadCardProps) {
   const {
     attributes,
     listeners,
@@ -148,6 +150,26 @@ export default function LeadCard({ lead, onClick }: LeadCardProps) {
               <Clock className="w-3 h-3 opacity-60" /> Follow up: {lead.nextFollowUp}
             </div>
           )}
+        </div>
+      )}
+
+      {onMove && (
+        <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/50 relative z-10 transition-opacity opacity-0 group-hover:opacity-100">
+          <button 
+            className="p-1 hover:bg-muted/50 rounded text-muted transition-colors disabled:opacity-30"
+            disabled={STAGES.indexOf(lead.stage as Stage) === 0}
+            onClick={(e) => { e.stopPropagation(); onMove(lead.id, STAGES[STAGES.indexOf(lead.stage as Stage) - 1]); }}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Move</span>
+          <button 
+            className="p-1 hover:bg-muted/50 rounded text-muted transition-colors disabled:opacity-30"
+            disabled={STAGES.indexOf(lead.stage as Stage) === STAGES.length - 1}
+            onClick={(e) => { e.stopPropagation(); onMove(lead.id, STAGES[STAGES.indexOf(lead.stage as Stage) + 1]); }}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>

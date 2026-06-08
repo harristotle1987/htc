@@ -19,7 +19,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { motion } from 'motion/react';
 
-const STAGES: Stage[] = [
+export const STAGES: Stage[] = [
   'Discovery Scheduled',
   'Post-Discovery',
   'Pitch Complete',
@@ -36,7 +36,7 @@ interface BoardProps {
   isReadOnly?: boolean;
 }
 
-function Column({ stage, leads, onLeadClick }: { key?: React.Key; stage: Stage, leads: Lead[], onLeadClick: (lead: Lead) => void }) {
+function Column({ stage, leads, onLeadClick, onMove }: { key?: React.Key; stage: Stage, leads: Lead[], onLeadClick: (lead: Lead) => void, onMove: (leadId: string, newStage: Stage) => void }) {
   const { setNodeRef, isOver } = useSortable({
     id: stage,
     data: {
@@ -62,7 +62,7 @@ function Column({ stage, leads, onLeadClick }: { key?: React.Key; stage: Stage, 
       <div className="flex-1 p-3 bg-background flex flex-col min-h-[400px] relative">
         <SortableContext items={leadIds} strategy={verticalListSortingStrategy}>
           {leads.map(lead => (
-            <LeadCard key={lead.id} lead={lead} onClick={onLeadClick} />
+            <LeadCard key={lead.id} lead={lead} onClick={onLeadClick} onMove={onMove} />
           ))}
         </SortableContext>
         
@@ -187,6 +187,7 @@ export default function Board({ leads, onDragEnd, onLeadClick, isReadOnly }: Boa
                   stage={stage} 
                   leads={columnLeads} 
                   onLeadClick={onLeadClick} 
+                  onMove={onDragEnd}
                 />
               </div>
             );

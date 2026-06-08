@@ -115,7 +115,10 @@ export default function LandingPage({ onSignInSuccess }: LandingPageProps) {
             <button onClick={toggleTheme} className="p-2.5 rounded-full hover:bg-muted/50 border border-transparent hover:border-border text-muted-foreground hover:text-foreground transition-all mr-2">
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            <button onClick={() => { setModalType('login'); }} className="text-sm font-bold bg-primary text-primary-foreground px-5 py-2.5 rounded border border-primary hover:brightness-110 transition-all tracking-wider uppercase">Initialize Vault</button>
+            <button onClick={() => { setModalType('login'); }} className="text-sm font-bold text-muted-foreground hover:text-foreground transition-all uppercase tracking-widest hover:bg-muted/50 px-4 py-2.5 rounded">
+              Sign In
+            </button>
+            <button onClick={() => { setModalType('signup'); }} className="text-sm font-bold bg-primary text-primary-foreground px-5 py-2.5 rounded border border-primary hover:brightness-110 transition-all tracking-wider uppercase">Initialize Vault</button>
           </div>
         </div>
       </nav>

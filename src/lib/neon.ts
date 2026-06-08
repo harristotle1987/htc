@@ -245,6 +245,7 @@ export async function initDb() {
     `;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`;
