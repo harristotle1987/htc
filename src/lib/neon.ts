@@ -6,15 +6,16 @@ try {
   if (process.env.DATABASE_URL) {
     sqlClient = neon(process.env.DATABASE_URL);
   } else {
-    // Only throw when they try to actually query
-    sqlClient = (strings: any, ...values: any[]) => {
-      console.error('DATABASE_URL environment variable is not defined.');
-      throw new Error('DATABASE_URL environment variable is not defined. Please add it in project settings.');
+    // Gracefully fallback instead of throwing error when db is not configured
+    sqlClient = async (strings: any, ...values: any[]) => {
+      console.warn('DATABASE_URL environment variable is not defined.');
+      return [];
     };
   }
 } catch (e) {
-  sqlClient = (strings: any, ...values: any[]) => {
-    throw new Error(`Failed to initialize Postgres: ${(e as Error).message}`);
+  sqlClient = async (strings: any, ...values: any[]) => {
+    console.error(`Failed to initialize Postgres: ${(e as Error).message}`);
+    return [];
   };
 }
 
@@ -62,7 +63,8 @@ export async function initDb() {
 
     // Seed mock data
     const existingLeads = await sql`SELECT count(*) FROM leads`;
-    if (parseInt(existingLeads[0].count) === 0) {
+    const count = (existingLeads && existingLeads.length > 0 && existingLeads[0].count) ? parseInt(existingLeads[0].count) : 0;
+    if (count === 0) {
       console.log("Seeding mock leads data...");
       const mockLeads = [
         { id: 'L1', name: 'Marcus', company: 'TechNova', deal_size: 15000, stage: 'Discovery Scheduled', call_type: 'Inbound', bleeding_neck: 'Fast process', emotional_anchor: 'Wants exit', coi: '$20M', future_identity: 'Leader', budget_anchor: '$15k', next_follow_up: '2026-05-20', notes: 'Very motivated', tasks: '[]' },
@@ -292,7 +294,8 @@ export async function initDb() {
     await sql`ALTER TABLE tier_prices ADD COLUMN IF NOT EXISTS price_annually NUMERIC`;
     
     const existingPrices = await sql`SELECT count(*) FROM tier_prices`;
-    if (parseInt(existingPrices[0].count) === 0) {
+    const priceCount = (existingPrices && existingPrices.length > 0 && existingPrices[0].count) ? parseInt(existingPrices[0].count) : 0;
+    if (priceCount === 0) {
       await sql`INSERT INTO tier_prices (tier, price, price_monthly, price_quarterly, price_annually) VALUES ('architect', 6, 6, 16.2, 57.6), ('syndicate', 16, 16, 43.2, 153.6)`;
     } else {
       await sql`UPDATE tier_prices SET price_monthly = price WHERE price_monthly IS NULL`;

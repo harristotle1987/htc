@@ -1,6 +1,6 @@
 import express from 'express';
 import path from 'path';
-import { initDb, sql } from './src/lib/neon';
+import { initDb, sql } from './src/lib/neon.js';
 import dotenv from 'dotenv';
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
@@ -400,7 +400,8 @@ app.post('/api/signup', async (req, res) => {
     }
 
     const userCount = await sql`SELECT count(*) FROM users`;
-    const isAdmin = parseInt(userCount[0].count) === 0;
+    const count = (userCount && userCount.length > 0 && userCount[0].count) ? parseInt(userCount[0].count) : 0;
+    const isAdmin = count === 0;
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(password, salt);
     
@@ -468,7 +469,8 @@ app.get('/api/users/:email', async (req, res) => {
     } else {
       // Auto-create missing user record (might be existing Firebase user backing into Postgres)
       const userCount = await sql`SELECT count(*) FROM users`;
-      const isAdmin = parseInt(userCount[0].count) === 0;
+      const count = (userCount && userCount.length > 0 && userCount[0].count) ? parseInt(userCount[0].count) : 0;
+      const isAdmin = count === 0;
       const newId = Date.now().toString();
       await sql`
         INSERT INTO users (id, name, email, phone, subscription, is_admin, last_page)

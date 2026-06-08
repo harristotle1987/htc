@@ -35,7 +35,13 @@ export const apiFetch = async (input: RequestInfo | URL, init: RequestInit = {})
       }
 
       // Final attempt failed with a 5xx error, trigger toast
-      showToast('Service Temporarily Unavailable');
+      try {
+        const text = await response.clone().text();
+        const data = JSON.parse(text);
+        showToast(data.error || 'Service Temporarily Unavailable');
+      } catch (e) {
+        showToast('Service Temporarily Unavailable');
+      }
       return response;
     } catch (error) {
       // Network error (fetch threw)
@@ -47,7 +53,7 @@ export const apiFetch = async (input: RequestInfo | URL, init: RequestInit = {})
       }
 
       // Ultimate failure on network error, trigger toast and rethrow
-      showToast('Service Temporarily Unavailable');
+      showToast('Network Connection Failed');
       throw error;
     }
   }
