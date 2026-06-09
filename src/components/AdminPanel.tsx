@@ -253,11 +253,11 @@ export default function AdminPanel() {
       </div>
 {/* Tier Pricing Configuration */}
       <div className="bg-card/60 backdrop-blur-md border border-border rounded-2xl p-4 md:p-8 shadow-xl mt-8">
-         <div className="flex items-center justify-between mb-6">
+         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <h2 className="text-2xl font-display font-bold tracking-tight">Tier Pricing Configuration</h2>
-            <div className="flex items-center gap-2">
-                <input type="text" value={newTierName} onChange={e => setNewTierName(e.target.value)} placeholder="New Tier Name" className="bg-background border border-border px-3 py-1 rounded" />
-                <button onClick={addTier} className="bg-primary text-primary-foreground px-4 py-1 rounded font-bold uppercase text-xs hover:brightness-110">Add Tier</button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+                <input type="text" value={newTierName} onChange={e => setNewTierName(e.target.value)} placeholder="New Tier Name" className="bg-background border border-border px-3 py-1 rounded flex-1 sm:flex-none" />
+                <button onClick={addTier} className="bg-primary text-primary-foreground px-4 py-1 rounded font-bold uppercase text-xs hover:brightness-110 shrink-0">Add Tier</button>
             </div>
          </div>
          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

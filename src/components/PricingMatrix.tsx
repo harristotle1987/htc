@@ -11,7 +11,7 @@ declare global {
   }
 }
 
-export default function PricingMatrix({ userEmail, pendingTier, isExpired, onComplete, onBack }: { userEmail: string | null; pendingTier?: string | null; isExpired?: boolean; onComplete: (tier: string, billingCycle: 'monthly' | 'quarterly' | 'annually') => void; onBack?: () => void }) {
+export default function PricingMatrix({ userEmail, pendingTier, isExpired, onComplete, onBack }: { userEmail: string | null; pendingTier?: string | null; isExpired?: boolean; onComplete: (tier: string, billingCycle?: 'monthly' | 'quarterly' | 'annually') => void; onBack?: () => void }) {
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [prices, setPrices] = useState({ 

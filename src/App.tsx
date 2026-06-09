@@ -491,12 +491,16 @@ export default function App() {
     return <PricingMatrix userEmail={userEmail} pendingTier={pendingTier} isExpired={isExpired} onComplete={(newTier, billingCycle) => {
       setTier(newTier);
       if (currentUser) {
-        const start = new Date();
-        const expiration = new Date();
-        if (billingCycle === 'monthly') expiration.setMonth(expiration.getMonth() + 1);
-        else if (billingCycle === 'quarterly') expiration.setMonth(expiration.getMonth() + 3);
-        else if (billingCycle === 'annually') expiration.setFullYear(expiration.getFullYear() + 1);
-        setCurrentUser({...currentUser, subscription: newTier, subscriptionStartDate: start.toISOString(), subscriptionExpiresAt: expiration.toISOString()}); // optimistic update
+        if (newTier === 'free' || newTier === 'unassigned') {
+          setCurrentUser({...currentUser, subscription: newTier, subscriptionStartDate: null, subscriptionExpiresAt: null});
+        } else {
+          const start = new Date();
+          const expiration = new Date();
+          if (billingCycle === 'monthly') expiration.setMonth(expiration.getMonth() + 1);
+          else if (billingCycle === 'quarterly') expiration.setMonth(expiration.getMonth() + 3);
+          else if (billingCycle === 'annually') expiration.setFullYear(expiration.getFullYear() + 1);
+          setCurrentUser({...currentUser, subscription: newTier, subscriptionStartDate: start.toISOString(), subscriptionExpiresAt: expiration.toISOString()}); // optimistic update
+        }
       }
     }} onBack={handleLogout} />;
   }
