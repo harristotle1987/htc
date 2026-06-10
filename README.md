@@ -1,14 +1,16 @@
-# Aegis Vault
+# Aegis CRM
 
-Aegis Vault is a premium, high-tech executive CRM and pipeline management tool built for high-ticket sales professionals. It diagnoses issues, manages stakeholders, tracks influence, and synchronizes with your Google Workspace.
+Aegis CRM is a premium, high-tech executive CRM and pipeline management tool built specifically for high-ticket sales professionals. It tracks performance, manages stakeholders, tracks influence, and synchronizes with your Google Workspace.
 
 ## Features
 
-- **Executive Pipeline:** Visual drag-and-drop kanban board for tracking leads.
-- **Influence Mapping:** Map out stakeholders, budget anchors, and decision-makers for complex enterprise deals.
+- **Executive Pipeline:** Visual drag-and-drop kanban board for tracking leads using `@dnd-kit`.
+- **Contact Priority Filtering:** Quickly sort or isolate your stakeholders by their 'priority' status.
+- **Relational Database Backend:** Built with a PostgreSQL/Neon Serverless backend and Express APIs for secure, durable data persistence.
 - **Google Workspace Integration:** View recent correspondence and sync directly into your CRM.
 - **Two-Factor Authentication:** High-security vault access for sensitive pipeline data.
-- **Offline / Local First:** Leverages local storage for fast, responsive performance in preview.
+- **Scheduling & Calendar:** Integrated scheduling tools using React-Calendly and Cal.com options.
+- **Vercel Ready:** Pre-configured with `vercel.json` and a serverless API structure `/api/index.ts` for quick deployment.
 
 ## Getting Started
 
@@ -24,10 +26,23 @@ Aegis Vault is a premium, high-tech executive CRM and pipeline management tool b
    ```bash
    npm install
    ```
-3. Run the development server:
+3. Set up your `.env` variables (see `.env.example`).
+4. Run the development server:
    ```bash
    npm run dev
    ```
+5. Build for production:
+   ```bash
+   npm run build
+   ```
+
+## Deploying to Vercel
+
+Aegis CRM relies on an Express backend. For Vercel deployments, the `/api/index.ts` serves as the entry point for Serverless Functions.
+
+1. Install the Vercel CLI: `npm i -g vercel`
+2. Run `vercel` from the root directory.
+3. Ensure you provide your database environment variables (like Neon Database URLs) in your Vercel project settings.
 
 ## Fixing the "Google hasn't verified this app" Error
 
@@ -39,18 +54,21 @@ To fix this permanently for production, you must submit your app for verificatio
 2. Select the existing Google Cloud project for your app.
 3. Navigate to **APIs & Services > OAuth consent screen**.
 4. Make sure you set your publishing status to **In production**.
-5. Under **App domain**, you are required to provide links to your Privacy Policy and Terms of Service. Aegis Vault already includes these for you! Enter the URLs where you deployed this app:
+5. Under **App domain**, you are required to provide links to your Privacy Policy and Terms of Service. Aegis CRM already includes these for you! Enter the URLs where you deployed this app:
    - **Privacy Policy URL:** `https://your-domain.com/privacy.html`
    - **Terms of Service URL:** `https://your-domain.com/terms.html`
 6. Submit the app for verification. Google's Trust & Safety team will review your application (which takes about 3-5 business days). Once verified, the warning screen will be completely removed for your users.
 
 ## Tech Stack
 
-- React 18
+- React 19
 - Vite
+- Express (Backend API)
+- Neon PostgreSQL
 - Tailwind CSS
 - Framer Motion
 - Lucide React
+- Recharts
 
 ## License
 MIT
