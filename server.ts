@@ -74,7 +74,8 @@ function mapPostgresLead(row: any) {
     amountPaid: row.amount_paid ? Number(row.amount_paid) : 0,
     paymentConfirmed: !!row.payment_confirmed,
     talkToListenRatio: row.talk_to_listen_ratio ? Number(row.talk_to_listen_ratio) : 0,
-    bookingDate: row.booking_date ? new Date(row.booking_date).toISOString() : undefined
+    bookingDate: row.booking_date ? new Date(row.booking_date).toISOString() : undefined,
+    priority: row.priority || undefined
   };
 }
 
@@ -328,14 +329,14 @@ app.delete('/api/metrics/:id', async (req, res) => {
 app.post('/api/leads', async (req, res) => {
   const id = `L${Date.now()}`;
   const userEmail = (req as any).userEmail;
-  const { name, company, dealSize, stage, callType, bleedingNeck, emotionalAnchor, coi, futureIdentity, budgetAnchor, nextFollowUp, notes, tasks, closerId, closerPercentage, amountPaid, paymentConfirmed, talkToListenRatio, bookingDate } = req.body;
+  const { name, company, dealSize, stage, callType, bleedingNeck, emotionalAnchor, coi, futureIdentity, budgetAnchor, nextFollowUp, notes, tasks, closerId, closerPercentage, amountPaid, paymentConfirmed, talkToListenRatio, bookingDate, priority } = req.body;
 
   try {
     await sql`
       INSERT INTO leads (
         id, user_email, name, company, deal_size, stage, call_type, bleeding_neck, 
         emotional_anchor, coi, future_identity, budget_anchor, next_follow_up, notes, tasks,
-        closer_id, closer_percentage, amount_paid, payment_confirmed, talk_to_listen_ratio, booking_date
+        closer_id, closer_percentage, amount_paid, payment_confirmed, talk_to_listen_ratio, booking_date, priority
       ) VALUES (
         ${id}, 
         ${userEmail || ''},
@@ -357,7 +358,8 @@ app.post('/api/leads', async (req, res) => {
         ${amountPaid || 0},
         ${paymentConfirmed || false},
         ${talkToListenRatio || 0},
-        ${bookingDate || null}
+        ${bookingDate || null},
+        ${priority || null}
       )
     `;
     console.log(`Lead ${id} saved to Neon Postgres.`);
@@ -376,7 +378,8 @@ app.post('/api/leads', async (req, res) => {
         budgetAnchor, 
         nextFollowUp, 
         notes, 
-        tasks
+        tasks,
+        priority
       });
   } catch (pgErr) {
     console.error('Failed to insert lead into Neon Postgres:', pgErr);
@@ -796,7 +799,7 @@ app.patch('/api/leads/:id', async (req, res) => {
       const merged = {
         name: updates.name !== undefined ? updates.name : current.name,
         company: updates.company !== undefined ? updates.company : current.company,
-        dealSize: updates.dealSize !== undefined ? updates.dealSize : current.deal_size,
+        dealSize: (updates.dealSize !== undefined && updates.dealSize !== '') ? updates.dealSize : (updates.dealSize === '' ? 0 : current.deal_size),
         stage: updates.stage !== undefined ? updates.stage : current.stage,
         callType: updates.callType !== undefined ? updates.callType : current.call_type,
         bleedingNeck: updates.bleedingNeck !== undefined ? updates.bleedingNeck : current.bleeding_neck,
@@ -808,11 +811,12 @@ app.patch('/api/leads/:id', async (req, res) => {
         notes: updates.notes !== undefined ? updates.notes : current.notes,
         tasks: updates.tasks !== undefined ? JSON.stringify(updates.tasks) : current.tasks,
         closerId: updates.closerId !== undefined ? updates.closerId : current.closer_id,
-        closerPercentage: updates.closerPercentage !== undefined ? updates.closerPercentage : current.closer_percentage,
-        amountPaid: updates.amountPaid !== undefined ? updates.amountPaid : current.amount_paid,
+        closerPercentage: (updates.closerPercentage !== undefined && updates.closerPercentage !== '') ? updates.closerPercentage : (updates.closerPercentage === '' ? 0 : current.closer_percentage),
+        amountPaid: (updates.amountPaid !== undefined && updates.amountPaid !== '') ? updates.amountPaid : (updates.amountPaid === '' ? 0 : current.amount_paid),
         paymentConfirmed: updates.paymentConfirmed !== undefined ? updates.paymentConfirmed : current.payment_confirmed,
-        talkToListenRatio: updates.talkToListenRatio !== undefined ? updates.talkToListenRatio : current.talk_to_listen_ratio,
-        bookingDate: updates.bookingDate !== undefined ? updates.bookingDate : current.booking_date
+        talkToListenRatio: (updates.talkToListenRatio !== undefined && updates.talkToListenRatio !== '') ? updates.talkToListenRatio : (updates.talkToListenRatio === '' ? null : current.talk_to_listen_ratio),
+        bookingDate: (updates.bookingDate !== undefined && updates.bookingDate !== '') ? updates.bookingDate : (updates.bookingDate === '' ? null : current.booking_date),
+        priority: updates.priority !== undefined ? updates.priority : current.priority
       };
 
       await sql`
@@ -835,12 +839,13 @@ app.patch('/api/leads/:id', async (req, res) => {
           amount_paid = ${merged.amountPaid},
           payment_confirmed = ${merged.paymentConfirmed},
           talk_to_listen_ratio = ${merged.talkToListenRatio},
-          booking_date = ${merged.bookingDate}
+          booking_date = ${merged.bookingDate},
+          priority = ${merged.priority}
         WHERE id = ${id}
       `;
       console.log(`Lead ${id} updated in Neon Postgres.`);
       res.json({ success: true });
-      io.emit('lead_updated', { ...updates, id });
+      io.emit('lead_updated', { ...updates, id, priority: merged.priority });
     } else {
         res.status(404).json({ error: 'Lead not found' });
     }

@@ -47,7 +47,8 @@ export async function initDb() {
         closer_percentage NUMERIC,
         amount_paid NUMERIC,
         payment_confirmed BOOLEAN DEFAULT FALSE,
-        talk_to_listen_ratio NUMERIC
+        talk_to_listen_ratio NUMERIC,
+        priority VARCHAR(50)
       )
     `;
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)`;
@@ -60,6 +61,7 @@ export async function initDb() {
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS payment_confirmed BOOLEAN DEFAULT FALSE`;
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS talk_to_listen_ratio NUMERIC`;
     await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS booking_date TIMESTAMP`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS priority VARCHAR(50)`;
 
     // Seed mock data
     const existingLeads = await sql`SELECT count(*) FROM leads`;

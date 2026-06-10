@@ -70,6 +70,7 @@ export interface Lead {
   paymentConfirmed?: boolean;
   talkToListenRatio?: number;
   bookingDate?: string;
+  priority?: 'Low' | 'Medium' | 'High';
   stakeholders?: Stakeholder[];
   tasks?: Task[];
 }

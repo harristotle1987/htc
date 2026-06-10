@@ -152,6 +152,18 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete, isReadOnl
                 <option value="Nurture / Long-Term">Nurture / Long-Term</option>
               </select>
 
+              <select disabled={isReadOnly}
+                name="priority"
+                value={formData.priority || ''}
+                onChange={handleChange}
+                className="bg-background/80 border border-border text-muted uppercase tracking-wider text-xs px-3 py-2 rounded-lg focus:outline-none font-semibold cursor-pointer appearance-none hover:border-border/80 transition-colors"
+              >
+                <option value="" disabled>Select Priority</option>
+                <option value="Low">Low Priority</option>
+                <option value="Medium">Medium Priority</option>
+                <option value="High">High Priority</option>
+              </select>
+
               <div className="flex items-center gap-2 bg-background/80 border border-border text-muted text-xs px-3 py-1.5 rounded-lg hover:border-border/80 transition-colors">
                 <span className="font-bold tracking-wider uppercase">Booking:</span>
                 <input disabled={isReadOnly}

@@ -78,6 +78,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleSovereign);
   }, []);
   const [contactSearch, setContactSearch] = useState('');
+  const [contactPriorityFilter, setContactPriorityFilter] = useState('');
   const [notifiedTasks, setNotifiedTasks] = useState<Set<string>>(new Set());
   
   // Auth state
@@ -639,13 +640,25 @@ export default function App() {
                       <p className="text-muted text-base">Manage all stakeholders and strategic contacts across your pipeline.</p>
                     </div>
                     
-                    <input 
-                      type="text"
-                      placeholder="Search contacts..."
-                      value={contactSearch}
-                      onChange={(e) => setContactSearch(e.target.value)}
-                      className="bg-card border border-border px-4 py-2 rounded-xl text-sm focus:outline-none focus:border-primary"
-                    />
+                    <div className="flex items-center gap-4">
+                      <input 
+                        type="text"
+                        placeholder="Search contacts..."
+                        value={contactSearch}
+                        onChange={(e) => setContactSearch(e.target.value)}
+                        className="bg-card border border-border px-4 py-2 rounded-xl text-sm focus:outline-none focus:border-primary"
+                      />
+                      <select
+                        value={contactPriorityFilter}
+                        onChange={(e) => setContactPriorityFilter(e.target.value)}
+                        className="bg-card border border-border px-4 py-2 rounded-xl text-sm focus:outline-none focus:border-primary text-muted-foreground"
+                      >
+                        <option value="">All Priorities</option>
+                        <option value="High">High Priority</option>
+                        <option value="Medium">Medium Priority</option>
+                        <option value="Low">Low Priority</option>
+                      </select>
+                    </div>
 
                     <AnimatePresence>
                       {selectedLeadIds.length > 0 && (
@@ -750,6 +763,7 @@ export default function App() {
                       <tbody className="divide-y divide-border">
                         {leads
                           .filter(l => l.name.toLowerCase().includes(contactSearch.toLowerCase()) || (l.company || '').toLowerCase().includes(contactSearch.toLowerCase()))
+                          .filter(l => contactPriorityFilter ? l.priority === contactPriorityFilter : true)
                           .map(lead => (
                           <tr key={lead.id} className={`hover:bg-white/[0.02] transition-colors cursor-pointer group ${selectedLeadIds.includes(lead.id) ? 'bg-primary/5' : ''}`} onClick={() => setSelectedLead(lead)}>
                             <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
@@ -764,7 +778,18 @@ export default function App() {
                               />
                             </td>
                             <td className="px-6 py-4">
-                              <span className="font-bold text-foreground group-hover:text-primary transition-colors">{lead.name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-foreground group-hover:text-primary transition-colors">{lead.name}</span>
+                                {lead.priority && (
+                                  <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full shadow-inner border whitespace-nowrap ${
+                                    lead.priority === 'High' ? 'text-red-400 bg-red-400/10 border-red-400/20' : 
+                                    lead.priority === 'Medium' ? 'text-orange-400 bg-orange-400/10 border-orange-400/20' : 
+                                    'text-green-400 bg-green-400/10 border-green-400/20'
+                                  }`}>
+                                    {lead.priority}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-6 py-4 text-muted font-medium">{lead.company}</td>
                             <td className="px-6 py-4">
