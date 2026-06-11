@@ -208,7 +208,6 @@ app.get('/api/metrics', async (req, res) => {
     
     if (metrics.length === 0) {
       res.json({
-        setupRequired: true,
         metrics: [
           { 
             id: '1', totalCalls: '100', shows: '80', closes: '20', totalRevenue: '$150,000', refunds: '$0',
@@ -389,8 +388,29 @@ app.post('/api/leads', async (req, res) => {
 
 import bcrypt from 'bcryptjs';
 
+// GET /api/settings - Public settings
+app.get('/api/settings', async (req, res) => {
+  try {
+    const settings = await sql`SELECT * FROM global_settings`;
+    const formatted = settings.reduce((acc: any, curr: any) => ({ ...acc, [curr.setting_key]: curr.setting_value === 'true' }), {
+      maintenanceMode: false,
+      registrationOpen: true
+    });
+    res.json(formatted);
+  } catch(err) {
+    res.json({ maintenanceMode: false, registrationOpen: true });
+  }
+});
+
 // POST /api/signup - Store new user in Postgres
 app.post('/api/signup', async (req, res) => {
+  try {
+    const settings = await sql`SELECT * FROM global_settings WHERE setting_key = 'registrationOpen'`;
+    if (settings && settings.length > 0 && settings[0].setting_value === 'false') {
+      return res.status(403).json({ error: 'Registration is currently closed.' });
+    }
+  } catch(err) {}
+
   const { name, email, phone, password } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -756,6 +776,137 @@ app.get('/api/admin/logs', async (req, res) => {
   } catch (error) {
     console.error('Error fetching logs:', error);
     res.status(500).json({ error: 'Failed to fetch logs' });
+  }
+});
+
+// GET /api/admin/settings
+app.get('/api/admin/settings', async (req, res) => {
+  try {
+    const settings = await sql`SELECT * FROM global_settings`;
+    // default fallbacks if not yet in db
+    const formatted = settings.reduce((acc: any, curr: any) => ({ ...acc, [curr.setting_key]: curr.setting_value === 'true' }), {
+      maintenanceMode: false,
+      registrationOpen: true,
+      requireVerification: false
+    });
+    res.json({ settings: formatted });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
+
+// POST /api/admin/settings
+app.post('/api/admin/settings', async (req, res) => {
+  try {
+    const { settings } = req.body;
+    for (const [key, value] of Object.entries(settings)) {
+      await sql`
+        INSERT INTO global_settings (setting_key, setting_value) 
+        VALUES (${key}, ${String(value)}) 
+        ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value
+      `;
+    }
+    io.emit('settings_update', settings);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+// POST /api/admin/broadcast
+app.post('/api/admin/broadcast', async (req, res) => {
+  try {
+    const { message } = req.body;
+    io.emit('admin_broadcast', message);
+    await sql`INSERT INTO logs (id, action, user_email) VALUES (${'L' + Date.now()}, ${'System broadcast: ' + message}, 'System')`;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to dispatch broadcast' });
+  }
+});
+
+// GET /api/support
+app.get('/api/support', async (req, res) => {
+  const email = req.query.email as string;
+  try {
+    let tickets;
+    if (email) {
+      tickets = await sql`SELECT * FROM support_tickets WHERE user_email = ${email} ORDER BY created_at DESC`;
+    } else {
+      tickets = await sql`SELECT * FROM support_tickets ORDER BY created_at DESC`;
+    }
+    res.json({ tickets });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch tickets' });
+  }
+});
+
+// POST /api/support
+app.post('/api/support', async (req, res) => {
+  const { userEmail, subject, message } = req.body;
+  if (!userEmail || !subject || !message) return res.status(400).json({error: 'Missing required fields'});
+  try {
+    const ticket = await sql`
+      INSERT INTO support_tickets (user_email, subject, message)
+      VALUES (${userEmail}, ${subject}, ${message})
+      RETURNING *
+    `;
+    res.json({ ticket: ticket[0] });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create ticket' });
+  }
+});
+
+// PUT /api/support/:id
+app.put('/api/support/:id', async (req, res) => {
+  const id = req.params.id;
+  const { subject, message, userEmail } = req.body;
+  
+  if (!subject || !message) return res.status(400).json({ error: 'Missing required fields' });
+  
+  try {
+    const ticket = await sql`
+      UPDATE support_tickets 
+      SET subject = ${subject}, message = ${message} 
+      WHERE id = ${id} AND user_email = ${userEmail} 
+      RETURNING *
+    `;
+    if (!ticket || ticket.length === 0) return res.status(404).json({ error: 'Ticket not found or unauthorized' });
+    res.json({ ticket: ticket[0] });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update ticket' });
+  }
+});
+
+// DELETE /api/support/:id
+app.delete('/api/support/:id', async (req, res) => {
+  const id = req.params.id;
+  const userEmail = req.query.email as string;
+  try {
+    const ticket = await sql`
+      DELETE FROM support_tickets 
+      WHERE id = ${id} AND user_email = ${userEmail} 
+      RETURNING *
+    `;
+    if (!ticket || ticket.length === 0) return res.status(404).json({ error: 'Ticket not found or unauthorized' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete ticket' });
+  }
+});
+
+// PUT /api/admin/support/:id
+app.put('/api/admin/support/:id', async (req, res) => {
+  const id = req.params.id;
+  const { status } = req.body;
+  try {
+    const ticket = await sql`
+      UPDATE support_tickets SET status = ${status} WHERE id = ${id} RETURNING *
+    `;
+    if (!ticket || ticket.length === 0) return res.status(404).json({ error: 'Ticket not found' });
+    res.json({ ticket: ticket[0] });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update ticket' });
   }
 });
 

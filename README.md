@@ -10,7 +10,7 @@ Aegis CRM is a premium, high-tech executive CRM and pipeline management tool bui
 - **Google Workspace Integration:** View recent correspondence and sync directly into your CRM.
 - **Two-Factor Authentication:** High-security vault access for sensitive pipeline data.
 - **Scheduling & Calendar:** Integrated scheduling tools using React-Calendly and Cal.com options.
-- **Vercel Ready:** Pre-configured with `vercel.json` and a serverless API structure `/api/index.ts` for quick deployment.
+- **Vercel Ready:** Pre-configured with `vercel.json` and a serverless API structure `/api/app.ts` for quick deployment.
 
 ## Getting Started
 
@@ -38,7 +38,7 @@ Aegis CRM is a premium, high-tech executive CRM and pipeline management tool bui
 
 ## Deploying to Vercel
 
-Aegis CRM relies on an Express backend. For Vercel deployments, the `/api/index.ts` serves as the entry point for Serverless Functions.
+Aegis CRM relies on an Express backend. For Vercel deployments, the `/api/app.ts` serves as the entry point for Serverless Functions.
 
 1. Install the Vercel CLI: `npm i -g vercel`
 2. Run `vercel` from the root directory.

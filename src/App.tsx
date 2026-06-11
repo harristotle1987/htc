@@ -22,6 +22,7 @@ import TermsOfService from './components/TermsOfService';
 import MemberProfile from './components/MemberProfile';
 import ConfirmModal from './components/ConfirmModal';
 import { ToastProvider, useToast } from './components/Toast';
+import SupportDesk from './components/SupportDesk';
 
 const socket = io();
 
@@ -96,7 +97,16 @@ export default function App() {
     if (Notification.permission !== 'granted') return;
 
     const now = new Date();
+    // 24 hours from now
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    // Stored notifications for nextFollowUp
+    const storedFollowUpNotifs: Record<string, string> = JSON.parse(localStorage.getItem('notifiedFollowUps') || '{}');
+    let followUpUpdated = false;
+
     leads.forEach(lead => {
+      // Task notifications
       lead.tasks?.forEach(task => {
         if (task.dueDate && !task.completed && !notifiedTasks.has(task.id)) {
           const dueDate = new Date(task.dueDate);
@@ -108,7 +118,23 @@ export default function App() {
           }
         }
       });
+      
+      // Follow Up notifications (24h before)
+      if (lead.nextFollowUp && lead.nextFollowUp === tomorrowStr) {
+        if (storedFollowUpNotifs[lead.id] !== lead.nextFollowUp) {
+          new Notification('Follow-up Reminder', {
+            body: `You have a follow-up scheduled with ${lead.name} tomorrow (${lead.nextFollowUp}).`,
+            icon: '/vite.svg' // adding an icon to make it a bit colorful
+          });
+          storedFollowUpNotifs[lead.id] = lead.nextFollowUp;
+          followUpUpdated = true;
+        }
+      }
     });
+
+    if (followUpUpdated) {
+      localStorage.setItem('notifiedFollowUps', JSON.stringify(storedFollowUpNotifs));
+    }
   }, [leads, notifiedTasks]);
   
   // Bulk Actions
@@ -122,6 +148,14 @@ export default function App() {
   const [userEmail, setUserEmail] = useState<string | null>(() => localStorage.getItem('userEmail'));
   const [pendingTier, setPendingTier] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [globalSettings, setGlobalSettings] = useState<any>({ maintenanceMode: false, registrationOpen: true });
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => setGlobalSettings(data))
+      .catch(() => {});
+  }, []);
 
   const isReadOnly = false; // Free tier can now edit, but limited to 10 prospects
   
@@ -225,11 +259,21 @@ export default function App() {
         return [...prev, newLead];
       });
     });
+    socket.on('admin_broadcast', (message: string) => {
+      toast(`SYSTEM BROADCAST: ${message}`);
+    });
+    socket.on('settings_update', (settings: any) => {
+      if (settings && settings.maintenanceMode) {
+        toast(`WARNING: System maintenance mode has been activated.`);
+      }
+    });
 
     return () => {
       socket.off('lead_updated');
       socket.off('lead_deleted');
       socket.off('lead_created');
+      socket.off('admin_broadcast');
+      socket.off('settings_update');
     };
   }, []);
 
@@ -285,9 +329,6 @@ export default function App() {
       const textMetrics = await metricsRes.text();
       try { metricsData = JSON.parse(textMetrics); } catch(e) { console.error('Failed to parse metrics JSON:', textMetrics); metricsData = { metrics: [] }; }
       
-      if (leadsData.setupRequired || metricsData.setupRequired) {
-        setSetupRequired(true);
-      }
       if (leadsData.leads) setLeads(leadsData.leads);
       if (metricsData.metrics && metricsData.metrics.length > 0) {
         setMetrics(metricsData.metrics[0]);
@@ -468,10 +509,13 @@ export default function App() {
   }
 
   if (!isAuthenticated) {
+    if (globalSettings?.maintenanceMode && (!userEmail || !isAuthenticated)) {
+        // Allow Admins to still login if they know the route or via the standard screen. Actually we shouldn't block the standard login entirely, just let them see it but add a maintenance banner? Let's just pass globalSettings.maintenanceMode into LandingPage to show a banner.
+    }
     if (userEmail && is2FAEnabled) {
       return <Login2FA onSuccess={() => { setIsAuthenticated(true); setCurrentView('pipeline'); setViewHistory([]); }} onBack={() => { setUserEmail(''); setIs2FAEnabled(false); localStorage.removeItem('loginRequires2FA'); }} />;
     }
-    return <LandingPage onSignInSuccess={(email, tier, require2FA) => {
+    return <LandingPage globalSettings={globalSettings} onSignInSuccess={(email, tier, require2FA) => {
       setUserEmail(email);
       if (tier) setPendingTier(tier);
       if (require2FA) {
@@ -487,6 +531,19 @@ export default function App() {
   }
 
   const isExpired = currentUser?.subscriptionExpiresAt ? new Date(currentUser.subscriptionExpiresAt) < new Date() : false;
+
+  if (globalSettings?.maintenanceMode && currentUser && !currentUser.isAdmin) {
+    return (
+      <div className="min-h-[100dvh] w-full bg-background flex flex-col items-center justify-center p-8 text-center text-foreground font-sans">
+          <div className="w-24 h-24 mb-6 bg-amber-500/10 rounded-full flex items-center justify-center border-4 border-amber-500/20">
+              <span className="text-4xl">🚧</span>
+          </div>
+          <h1 className="text-4xl md:text-5xl font-display font-medium tracking-tight mb-4 text-foreground">System Maintenance</h1>
+          <p className="text-muted-foreground max-w-md text-lg">We are currently performing scheduled maintenance to upgrade our infrastructure. Please check back later.</p>
+          <button onClick={handleLogout} className="mt-8 bg-background text-foreground border border-border px-8 py-4 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-card/50 hover:border-primary/50 transition">Sign Out</button>
+      </div>
+    );
+  }
 
   if (isAuthenticated && (!tier || tier === 'unassigned' || isExpired)) {
     return <PricingMatrix userEmail={userEmail} pendingTier={pendingTier} isExpired={isExpired} onComplete={(newTier, billingCycle) => {
@@ -533,18 +590,6 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4 ml-auto">
-            <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold uppercase tracking-wider ${
-              setupRequired 
-                ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' 
-                : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
-            }`}>
-              <Database className="w-3.5 h-3.5" />
-              {setupRequired ? 'Demo Mode' : 'Sheets Connected'}
-              <span className="relative flex h-2 w-2 ml-1">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${setupRequired ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${setupRequired ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
-              </span>
-            </div>
             {currentView !== 'security' && !isReadOnly && (
               <motion.button
                  type="button"
@@ -910,7 +955,20 @@ export default function App() {
                 exit="out"
                 transition={pageTransition}
               >
-                <AdminPanel />
+                <AdminPanel isAdmin={currentUser?.isAdmin} />
+              </motion.div>
+            )}
+
+            {currentView === 'support' && (
+              <motion.div 
+                key="support"
+                variants={pageVariants}
+                initial="initial"
+                animate="in"
+                exit="out"
+                transition={pageTransition}
+              >
+                <SupportDesk currentUser={currentUser} />
               </motion.div>
             )}
 

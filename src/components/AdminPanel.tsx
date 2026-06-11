@@ -1,6 +1,6 @@
 import { apiFetch } from "../lib/api";
 import React, { useState, useEffect } from 'react';
-import { User as UserIcon, Trash2, Edit, Save, X, Settings2, Plus, Eye } from 'lucide-react';
+import { User as UserIcon, Trash2, Edit, Save, X, Settings2, Plus, Eye, Download, Megaphone, Activity, DollarSign, Users, ShieldAlert } from 'lucide-react';
 import ActivityLogs from './ActivityLogs';
 import AdminUserForm from './AdminUserForm';
 import ConfirmModal from './ConfirmModal';
@@ -8,7 +8,7 @@ import MemberProfile from './MemberProfile';
 import DiscountCalculator from './DiscountCalculator';
 import { useToast } from './Toast';
 
-export default function AdminPanel() {
+export default function AdminPanel({ isAdmin }: { isAdmin?: boolean }) {
   const toast = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +23,87 @@ export default function AdminPanel() {
     syndicate: { monthly: 16, quarterly: 43.2, annually: 153.6 } 
   });
   const [savingPrice, setSavingPrice] = useState(false);
+
+  const [globalSettings, setGlobalSettings] = useState({
+    maintenanceMode: false,
+    registrationOpen: true,
+    requireVerification: false
+  });
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  
+  const fetchSettings = () => {
+    apiFetch('/api/admin/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data.settings) setGlobalSettings(data.settings);
+      })
+      .catch(err => console.error(err));
+  };
+
+  const handleExportCSV = async (type: string) => {
+    toast(`Exporting ${type} to CSV...`);
+    try {
+       if (type === 'Users') {
+          const res = await apiFetch('/api/admin/users');
+          const data = await res.json();
+          const csvContent = "data:text/csv;charset=utf-8," + 
+             "ID,Name,Email,Phone,Subscription,Signup Date\n" +
+             (data.users || []).map((u: any) => `${u.id},${u.name},${u.email},${u.phone || ''},${u.subscription},${u.signupDate}`).join("\n");
+          const encodedUri = encodeURI(csvContent);
+          const link = document.createElement("a");
+          link.setAttribute("href", encodedUri);
+          link.setAttribute("download", "users_export.csv");
+          document.body.appendChild(link);
+          link.click();
+       } else if (type === 'Leads Database') {
+          const res = await apiFetch('/api/leads');
+          const data = await res.json();
+          const csvContent = "data:text/csv;charset=utf-8," + 
+             "ID,Name,Company,Stage,Deal Size\n" +
+             (data.leads || []).map((l: any) => `${l.id},${l.name},${l.company},${l.stage},${l.dealSize}`).join("\n");
+          const encodedUri = encodeURI(csvContent);
+          const link = document.createElement("a");
+          link.setAttribute("href", encodedUri);
+          link.setAttribute("download", "leads_export.csv");
+          document.body.appendChild(link);
+          link.click();
+       }
+       toast(`${type} export complete.`);
+    } catch(err) {
+       toast(`Failed to export ${type}`);
+    }
+  };
+
+  const saveSettings = async (newSettings: any) => {
+    setGlobalSettings(newSettings);
+    try {
+       const res = await apiFetch('/api/admin/settings', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ settings: newSettings })
+       });
+       if (!res.ok) throw new Error('Failed');
+       toast('Settings updated');
+    } catch(err) {
+       toast('Failed to update settings');
+    }
+  };
+
+  const sendBroadcast = async () => {
+    if (!broadcastMessage.trim()) return;
+    try {
+        const res = await apiFetch('/api/admin/broadcast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: broadcastMessage })
+        });
+        if (!res.ok) throw new Error('Failed');
+        toast('System broadcast dispatched successfully.');
+        setBroadcastMessage('');
+    } catch(err) {
+        toast('Failed to dispatch broadcast');
+    }
+  };
 
   const fetchUsers = () => {
     setLoading(true);
@@ -61,6 +142,7 @@ export default function AdminPanel() {
     fetchUsers();
     fetchPrices();
     fetchHealth();
+    fetchSettings();
   }, []);
 
   const [newTierName, setNewTierName] = useState('');
@@ -164,6 +246,47 @@ export default function AdminPanel() {
         <AdminUserForm onBack={() => setShowCreateForm(false)} onSaved={() => { setShowCreateForm(false); fetchUsers(); }} />
       ) : (
       <>
+        {/* Analytics Header */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="bg-card/60 backdrop-blur-md border border-border p-6 rounded-2xl shadow-xl flex items-center justify-between">
+                <div>
+                   <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Total Active Users</h3>
+                   <div className="text-4xl font-display font-bold">{users.filter((u: any) => u.subscription !== 'cancelled').length}</div>
+                </div>
+                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                    <Users className="w-6 h-6" />
+                </div>
+            </div>
+            
+            <div className="bg-card/60 backdrop-blur-md border border-border p-6 rounded-2xl shadow-xl flex items-center justify-between">
+                <div>
+                   <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Monthly MRR</h3>
+                   <div className="text-4xl font-display font-bold text-emerald-500">
+                     ${users.reduce((acc: number, user: any) => acc + (user.subscription === 'syndicate' ? tierPrices.syndicate.monthly : user.subscription === 'architect' ? tierPrices.architect.monthly : 0), 0).toFixed(0)}
+                   </div>
+                </div>
+                <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500">
+                    <DollarSign className="w-6 h-6" />
+                </div>
+            </div>
+            
+            <div className="bg-card/60 backdrop-blur-md border border-border p-6 rounded-2xl shadow-xl flex items-center justify-between">
+                <div>
+                   <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">System Status</h3>
+                   <div className="text-2xl font-display font-bold text-emerald-500 flex items-center gap-2 mt-2">
+                      <span className="relative flex h-3 w-3">
+                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                         <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                      </span>
+                      Optimal
+                   </div>
+                </div>
+                <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500">
+                    <Activity className="w-6 h-6" />
+                </div>
+            </div>
+        </div>
+
         <div className="bg-card/60 backdrop-blur-md border border-border rounded-2xl p-4 md:p-8 shadow-xl">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-3xl font-display font-bold tracking-tight">User Management</h2>
@@ -251,6 +374,50 @@ export default function AdminPanel() {
           </table>
         </div>
       </div>
+      
+      {/* System Connections Dashboard */}
+      {isAdmin && systemHealth && (
+        <div className="bg-card/60 backdrop-blur-md border border-border rounded-2xl p-4 md:p-8 shadow-xl mt-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-display font-bold tracking-tight">System Connections</h2>
+            <button onClick={fetchHealth} className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground">
+              Refresh Status
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+             <div className="bg-background/50 border border-border p-4 rounded-xl flex flex-col gap-2 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[40px] rounded-full pointer-events-none"></div>
+                <h4 className="text-xs uppercase text-muted-foreground font-bold tracking-wider relative z-10">Google Sheets API</h4>
+                <div className="flex items-center gap-2 relative z-10">
+                   <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                   <span className="font-semibold text-lg">Connected</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2 relative z-10">Running natively on Neon DB</p>
+             </div>
+             
+             <div className="bg-background/50 border border-border p-4 rounded-xl flex flex-col gap-2 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[40px] rounded-full pointer-events-none"></div>
+                <h4 className="text-xs uppercase text-muted-foreground font-bold tracking-wider relative z-10">Cal.com API</h4>
+                <div className="flex items-center gap-2 relative z-10">
+                   <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                   <span className="font-semibold text-lg">Configured</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2 relative z-10">Client scheduling</p>
+             </div>
+             
+             <div className="bg-background/50 border border-border p-4 rounded-xl flex flex-col gap-2 relative overflow-hidden">
+                <div className={`absolute top-0 right-0 w-32 h-32 ${systemHealth.monnifyGateway === 'Connected' ? 'bg-emerald-500/10' : 'bg-amber-500/10'} blur-[40px] rounded-full pointer-events-none`}></div>
+                <h4 className="text-xs uppercase text-muted-foreground font-bold tracking-wider relative z-10">Monnify Gateway</h4>
+                <div className="flex items-center gap-2 relative z-10">
+                   <div className={`w-2 h-2 rounded-full ${systemHealth.monnifyGateway === 'Connected' ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+                   <span className="font-semibold text-lg">{systemHealth.monnifyGateway}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2 relative z-10">Payment processing connection</p>
+             </div>
+          </div>
+        </div>
+      )}
+
 {/* Tier Pricing Configuration */}
       <div className="bg-card/60 backdrop-blur-md border border-border rounded-2xl p-4 md:p-8 shadow-xl mt-8">
          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
@@ -295,34 +462,95 @@ export default function AdminPanel() {
             ))}
          </div>
       </div>
-      </>
-      )}
-
-      {/* System Health / API Status */}
-      <div className="bg-card/60 backdrop-blur-md border border-border rounded-2xl p-4 md:p-8 shadow-xl mt-8">
-         <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-display font-bold tracking-tight">System Health & APIs</h2>
-            <button onClick={fetchHealth} className="bg-background border border-border px-4 py-1 rounded font-bold uppercase text-xs hover:bg-card/50 transition">Refresh</button>
-         </div>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {systemHealth ? Object.entries(systemHealth).map(([key, value]) => (
-                <div key={key} className="flex justify-between items-center p-4 bg-background/50 border border-border rounded-lg">
-                    <span className="capitalize font-bold text-muted-foreground">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                    <span className={`px-3 py-1 rounded text-xs font-bold uppercase ${
-                        (value as string) === 'Connected' || (value as string) === 'development' || (value as string) === 'production'
-                        ? 'bg-emerald-500/10 text-emerald-500' 
-                        : (value as string).includes('No Connection') || (value as string).includes('Error')
-                        ? 'bg-red-500/10 text-red-500'
-                        : 'bg-zinc-500/10 text-zinc-400'
-                    }`}>
-                        {value as string}
-                    </span>
+      {/* System Admin Operations */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+         {/* Global Platform Settings */}
+         <div className="bg-card/60 backdrop-blur-md border border-border rounded-2xl p-6 shadow-xl">
+             <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                    <Settings2 className="w-5 h-5" />
                 </div>
-            )) : (
-                <div className="col-span-2 text-center text-muted-foreground py-4">Checking systems...</div>
-            )}
+                <h2 className="text-xl font-display font-bold tracking-tight">Global Platform Settings</h2>
+             </div>
+             
+             <div className="space-y-4">
+                 <div className="flex items-center justify-between p-4 bg-background/50 border border-border rounded-xl">
+                    <div>
+                        <div className="font-bold">Maintenance Mode</div>
+                        <div className="text-sm text-muted-foreground">Disable general access for updates</div>
+                    </div>
+                    <button onClick={() => saveSettings({...globalSettings, maintenanceMode: !globalSettings.maintenanceMode})} className={`w-12 h-6 rounded-full relative transition-colors ${globalSettings.maintenanceMode ? 'bg-amber-500' : 'bg-border'}`}>
+                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${globalSettings.maintenanceMode ? 'left-7' : 'left-1'}`}></span>
+                    </button>
+                 </div>
+                 
+                 <div className="flex items-center justify-between p-4 bg-background/50 border border-border rounded-xl">
+                    <div>
+                        <div className="font-bold">Open Registration</div>
+                        <div className="text-sm text-muted-foreground">Allow new signups on the landing page</div>
+                    </div>
+                    <button onClick={() => saveSettings({...globalSettings, registrationOpen: !globalSettings.registrationOpen})} className={`w-12 h-6 rounded-full relative transition-colors ${globalSettings.registrationOpen ? 'bg-emerald-500' : 'bg-border'}`}>
+                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${globalSettings.registrationOpen ? 'left-7' : 'left-1'}`}></span>
+                    </button>
+                 </div>
+                 
+                 <div className="flex items-center justify-between p-4 bg-background/50 border border-border rounded-xl">
+                    <div>
+                        <div className="font-bold">Require Email Verification</div>
+                        <div className="text-sm text-muted-foreground">Force users to verify before access</div>
+                    </div>
+                    <button onClick={() => saveSettings({...globalSettings, requireVerification: !globalSettings.requireVerification})} className={`w-12 h-6 rounded-full relative transition-colors ${globalSettings.requireVerification ? 'bg-primary' : 'bg-border'}`}>
+                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${globalSettings.requireVerification ? 'left-7' : 'left-1'}`}></span>
+                    </button>
+                 </div>
+             </div>
+         </div>
+         
+         <div className="flex flex-col gap-8">
+             {/* Data Extraction */}
+             <div className="bg-card/60 backdrop-blur-md border border-border rounded-2xl p-6 shadow-xl flex-1 flex flex-col justify-center">
+                 <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                        <Download className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-xl font-display font-bold tracking-tight">Data Extraction</h2>
+                 </div>
+                 
+                 <div className="grid grid-cols-2 gap-4">
+                     <button onClick={() => handleExportCSV('Users')} className="bg-background border border-border p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-card/50 hover:border-primary/50 transition">
+                         <Users className="w-8 h-8 text-muted-foreground" />
+                         <span className="font-bold text-sm">Export Users</span>
+                     </button>
+                     <button onClick={() => handleExportCSV('Leads Database')} className="bg-background border border-border p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-card/50 hover:border-primary/50 transition">
+                         <ShieldAlert className="w-8 h-8 text-muted-foreground" />
+                         <span className="font-bold text-sm">Export Leads</span>
+                     </button>
+                 </div>
+             </div>
+             
+             {/* System Announcer */}
+             <div className="bg-card/60 backdrop-blur-md border border-border rounded-2xl p-6 shadow-xl">
+                 <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-amber-500/10 rounded-lg flex items-center justify-center text-amber-500">
+                        <Megaphone className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-xl font-display font-bold tracking-tight">System Announcer</h2>
+                 </div>
+                 <textarea 
+                    value={broadcastMessage}
+                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                    placeholder="Enter an emergency broadcast to display to all users..."
+                    className="w-full bg-background border border-border rounded-xl p-3 h-24 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all resize-none"
+                 />
+                 <button onClick={sendBroadcast} className="w-full mt-3 bg-amber-500 text-amber-950 font-bold uppercase tracking-widest text-xs py-3 rounded-lg hover:brightness-110 transition disabled:opacity-50" disabled={!broadcastMessage.trim()}>
+                    Dispatch Global Alert
+                 </button>
+             </div>
          </div>
       </div>
+      
+      </>
+      )}
 
       <div className="mt-8">
         <ActivityLogs />

@@ -9,9 +9,10 @@ interface AuthModalProps {
   type: 'login' | 'signup';
   onSignInSuccess: (email: string, require2FA?: boolean) => void;
   onTypeChange?: (type: 'login' | 'signup') => void;
+  registrationOpen?: boolean;
 }
 
-export default function AuthModal({ isOpen, onClose, type, onSignInSuccess, onTypeChange }: AuthModalProps) {
+export default function AuthModal({ isOpen, onClose, type, onSignInSuccess, onTypeChange, registrationOpen = true }: AuthModalProps) {
   const [formData, setFormData] = useState({ name: '', email: '', password: '', phone: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +21,10 @@ export default function AuthModal({ isOpen, onClose, type, onSignInSuccess, onTy
     e.preventDefault();
     setError(null);
     if (type === 'signup') {
+      if (!registrationOpen) {
+          setError('Registration is currently closed.');
+          return;
+      }
       try {
         const res = await apiFetch('/api/signup', {
           method: 'POST',
@@ -163,9 +168,13 @@ export default function AuthModal({ isOpen, onClose, type, onSignInSuccess, onTy
                 {type === 'login' ? (
                   <>
                     Don't have an account?{' '}
-                    <button type="button" onClick={() => onTypeChange?.('signup')} className="text-primary font-bold hover:underline">
-                      Sign Up
-                    </button>
+                    {registrationOpen ? (
+                      <button type="button" onClick={() => onTypeChange?.('signup')} className="text-primary font-bold hover:underline">
+                        Sign Up
+                      </button>
+                    ) : (
+                      <span className="text-muted/50 cursor-not-allowed" title="Registration is currently closed">Sign Up Closed</span>
+                    )}
                   </>
                 ) : (
                   <>

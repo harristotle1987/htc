@@ -8,6 +8,7 @@ import PricingMatrix from './PricingMatrix';
 
 interface LandingPageProps {
   onSignInSuccess: (email: string, pendingTier?: string | null, require2FA?: boolean) => void;
+  globalSettings?: any;
 }
 
 const GenericPage = ({ title, onBack }: { title: string, onBack: () => void }) => {
@@ -35,7 +36,7 @@ const GenericPage = ({ title, onBack }: { title: string, onBack: () => void }) =
 );
 };
 
-export default function LandingPage({ onSignInSuccess }: LandingPageProps) {
+export default function LandingPage({ onSignInSuccess, globalSettings }: LandingPageProps) {
   const [modalType, setModalType] = useState<'login' | 'signup' | null>(null);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
@@ -118,7 +119,11 @@ export default function LandingPage({ onSignInSuccess }: LandingPageProps) {
             <button onClick={() => { setModalType('login'); }} className="text-sm font-bold text-muted-foreground hover:text-foreground transition-all uppercase tracking-widest hover:bg-muted/50 px-4 py-2.5 rounded">
               Sign In
             </button>
-            <button onClick={() => { setModalType('signup'); }} className="text-sm font-bold bg-primary text-primary-foreground px-5 py-2.5 rounded border border-primary hover:brightness-110 transition-all tracking-wider uppercase">Initialize Vault</button>
+            {globalSettings?.registrationOpen !== false ? (
+               <button onClick={() => { setModalType('signup'); }} className="text-sm font-bold bg-primary text-primary-foreground px-5 py-2.5 rounded border border-primary hover:brightness-110 transition-all tracking-wider uppercase">Initialize Vault</button>
+            ) : (
+               <button disabled className="text-sm font-bold bg-muted text-muted-foreground px-5 py-2.5 rounded border border-border cursor-not-allowed tracking-wider uppercase" title="Registration is currently closed">Init Closed</button>
+            )}
           </div>
         </div>
       </nav>
@@ -393,6 +398,7 @@ export default function LandingPage({ onSignInSuccess }: LandingPageProps) {
           isOpen={true} 
           onClose={() => { setModalType(null); }} 
           type={modalType} 
+          registrationOpen={globalSettings?.registrationOpen}
           onSignInSuccess={handleAuthSuccess}
           onTypeChange={(type) => { 
             setModalType(type); 

@@ -296,6 +296,26 @@ export async function initDb() {
     await sql`ALTER TABLE tier_prices ADD COLUMN IF NOT EXISTS price_quarterly NUMERIC`;
     await sql`ALTER TABLE tier_prices ADD COLUMN IF NOT EXISTS price_annually NUMERIC`;
     
+    // 8. Global Platform Settings
+    await sql`
+      CREATE TABLE IF NOT EXISTS global_settings (
+        setting_key TEXT PRIMARY KEY,
+        setting_value TEXT
+      )
+    `;
+
+    // 9. Support Tickets
+    await sql`
+      CREATE TABLE IF NOT EXISTS support_tickets (
+        id SERIAL PRIMARY KEY,
+        user_email TEXT,
+        subject TEXT,
+        message TEXT,
+        status TEXT DEFAULT 'open',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    
     const existingPrices = await sql`SELECT count(*) FROM tier_prices`;
     const priceCount = (existingPrices && existingPrices.length > 0 && existingPrices[0].count) ? parseInt(existingPrices[0].count) : 0;
     if (priceCount === 0) {

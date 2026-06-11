@@ -1,8 +1,8 @@
 import React from 'react';
-import { Target, LayoutDashboard, Users, Shield, Settings, ChevronUp, ChevronDown, User, Calendar } from 'lucide-react';
+import { Target, LayoutDashboard, Users, Shield, Settings, ChevronUp, ChevronDown, User, Calendar, Headset } from 'lucide-react';
 import { motion } from 'motion/react';
 
-export type ViewType = 'pipeline' | 'contacts' | 'scheduling' | 'security' | 'admin' | 'privacy' | 'terms' | 'profile';
+export type ViewType = 'pipeline' | 'contacts' | 'scheduling' | 'security' | 'admin' | 'privacy' | 'terms' | 'profile' | 'support';
 
 interface SidebarProps {
   currentView: ViewType;
@@ -77,6 +77,13 @@ export default function Sidebar({ currentView, onViewChange, isAdmin }: SidebarP
           label="Profile" 
           active={currentView === 'profile'} 
           onClick={() => onViewChange('profile')} 
+        />
+        <NavItem 
+          id="support"
+          icon={<Headset size={18} />} 
+          label="Support" 
+          active={currentView === 'support'} 
+          onClick={() => onViewChange('support')} 
         />
       </nav>
       
