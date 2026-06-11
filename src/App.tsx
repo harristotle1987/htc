@@ -19,7 +19,7 @@ import SchedulingBoard from './components/SchedulingBoard';
 import BottomNav from './components/BottomNav';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
-import MemberProfile from './components/MemberProfile';
+import { MemberProfile } from './components/MemberProfile';
 import ConfirmModal from './components/ConfirmModal';
 import { ToastProvider, useToast } from './components/Toast';
 import SupportDesk from './components/SupportDesk';
