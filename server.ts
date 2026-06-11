@@ -817,11 +817,50 @@ app.post('/api/admin/settings', async (req, res) => {
 app.post('/api/admin/broadcast', async (req, res) => {
   try {
     const { message } = req.body;
-    io.emit('admin_broadcast', message);
+    const result = await sql`INSERT INTO announcements (message) VALUES (${message}) RETURNING *`;
+    const newAnnouncement = result[0];
+    io.emit('admin_broadcast', newAnnouncement);
     await sql`INSERT INTO logs (id, action, user_email) VALUES (${'L' + Date.now()}, ${'System broadcast: ' + message}, 'System')`;
-    res.json({ success: true });
+    res.json({ success: true, announcement: newAnnouncement });
   } catch (error) {
     res.status(500).json({ error: 'Failed to dispatch broadcast' });
+  }
+});
+
+// GET /api/admin/announcements
+app.get('/api/admin/announcements', async (req, res) => {
+  try {
+    const announcements = await sql`SELECT * FROM announcements ORDER BY created_at DESC`;
+    res.json({ announcements });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch announcements' });
+  }
+});
+
+// PUT /api/admin/announcements/:id
+app.put('/api/admin/announcements/:id', async (req, res) => {
+  const id = req.params.id;
+  const { message } = req.body;
+  try {
+    const result = await sql`UPDATE announcements SET message = ${message} WHERE id = ${id} RETURNING *`;
+    if (!result || result.length === 0) return res.status(404).json({ error: 'Announcement not found' });
+    io.emit('admin_broadcast_update', result[0]);
+    res.json({ announcement: result[0] });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update announcement' });
+  }
+});
+
+// DELETE /api/admin/announcements/:id
+app.delete('/api/admin/announcements/:id', async (req, res) => {
+  const id = req.params.id;
+  try {
+    const result = await sql`DELETE FROM announcements WHERE id = ${id} RETURNING *`;
+    if (!result || result.length === 0) return res.status(404).json({ error: 'Announcement not found' });
+    io.emit('admin_broadcast_delete', id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete announcement' });
   }
 });
 

@@ -3,6 +3,7 @@ import { Task } from '../types';
 import { Plus, Check, Trash2, Edit2, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ConfirmModal from './ConfirmModal';
+import { useToast } from './Toast';
 
 interface TaskListProps {
   isReadOnly?: boolean;
@@ -11,6 +12,7 @@ interface TaskListProps {
 }
 
 export default function TaskList({ tasks, onChange, isReadOnly }: TaskListProps) {
+  const toast = useToast();
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskAssignee, setNewTaskAssignee] = useState('');
   const [newTaskDate, setNewTaskDate] = useState('');
@@ -34,16 +36,22 @@ export default function TaskList({ tasks, onChange, isReadOnly }: TaskListProps)
     setNewTaskTitle('');
     setNewTaskAssignee('');
     setNewTaskDate('');
+    toast('Task added successfully');
   };
 
   const toggleTask = (id: string) => {
+    const task = tasks.find(t => t.id === id);
     onChange(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    if (task) {
+      toast(task.completed ? 'Task marked as pending' : 'Task marked as completed');
+    }
   };
 
   const executeDeleteTask = () => {
     if (taskToDelete) {
       onChange(tasks.filter(t => t.id !== taskToDelete));
       setTaskToDelete(null);
+      toast('Task deleted successfully');
     }
   };
 
@@ -91,7 +99,7 @@ export default function TaskList({ tasks, onChange, isReadOnly }: TaskListProps)
             />
             <button
               type="submit"
-              disabled={true}
+              disabled={!newTaskTitle.trim()}
               className="bg-primary/20 text-primary px-3 rounded-lg hover:bg-primary hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
@@ -145,7 +153,7 @@ export default function TaskList({ tasks, onChange, isReadOnly }: TaskListProps)
                 
                 {!isReadOnly && <button
                   onClick={() => setTaskToDelete(task.id)}
-                  className="text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 p-1 transition-opacity"
+                  className="text-muted-foreground hover:text-red-500 p-1 transition-opacity"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>}

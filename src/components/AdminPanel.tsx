@@ -17,7 +17,7 @@ export default function AdminPanel({ isAdmin }: { isAdmin?: boolean }) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [viewUser, setViewUser] = useState<any | null>(null);
   
-  const [deleteEmail, setDeleteEmail] = useState<string | null>(null);
+  const [deleteData, setDeleteData] = useState<{ email: string, x: number, y: number } | null>(null);
   const [tierPrices, setTierPrices] = useState({ 
     architect: { monthly: 6, quarterly: 16.2, annually: 57.6 }, 
     syndicate: { monthly: 16, quarterly: 43.2, annually: 153.6 } 
@@ -30,6 +30,8 @@ export default function AdminPanel({ isAdmin }: { isAdmin?: boolean }) {
     requireVerification: false
   });
   const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [editingAnnouncement, setEditingAnnouncement] = useState<any>(null);
   
   const fetchSettings = () => {
     apiFetch('/api/admin/settings')
@@ -100,8 +102,45 @@ export default function AdminPanel({ isAdmin }: { isAdmin?: boolean }) {
         if (!res.ok) throw new Error('Failed');
         toast('System broadcast dispatched successfully.');
         setBroadcastMessage('');
+        fetchAnnouncements();
     } catch(err) {
         toast('Failed to dispatch broadcast');
+    }
+  };
+
+  const fetchAnnouncements = () => {
+    apiFetch('/api/admin/announcements')
+      .then(res => res.json())
+      .then(data => setAnnouncements(data.announcements || []))
+      .catch(console.error);
+  };
+
+  const deleteAnnouncement = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this announcement?')) return;
+    try {
+      const res = await apiFetch(`/api/admin/announcements/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed');
+      toast('Announcement deleted');
+      fetchAnnouncements();
+    } catch (err) {
+      toast('Failed to delete announcement');
+    }
+  };
+
+  const updateAnnouncement = async (id: number) => {
+    if (!editingAnnouncement || !editingAnnouncement.message.trim()) return;
+    try {
+      const res = await apiFetch(`/api/admin/announcements/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: editingAnnouncement.message })
+      });
+      if (!res.ok) throw new Error('Failed');
+      toast('Announcement updated');
+      setEditingAnnouncement(null);
+      fetchAnnouncements();
+    } catch(err) {
+      toast('Failed to update announcement');
     }
   };
 
@@ -143,6 +182,7 @@ export default function AdminPanel({ isAdmin }: { isAdmin?: boolean }) {
     fetchPrices();
     fetchHealth();
     fetchSettings();
+    fetchAnnouncements();
   }, []);
 
   const [newTierName, setNewTierName] = useState('');
@@ -169,11 +209,11 @@ export default function AdminPanel({ isAdmin }: { isAdmin?: boolean }) {
   };
 
   const handleDelete = async () => {
-    if (!deleteEmail) return;
+    if (!deleteData) return;
     try {
-      await apiFetch(`/api/admin/users/${deleteEmail}`, { method: 'DELETE' });
-      setUsers(users.filter(u => u.email !== deleteEmail));
-      setDeleteEmail(null);
+      await apiFetch(`/api/admin/users/${deleteData.email}`, { method: 'DELETE' });
+      setUsers(users.filter(u => u.email !== deleteData.email));
+      setDeleteData(null);
       toast('User deleted successfully');
     } catch (err) {
       console.error(err);
@@ -235,12 +275,14 @@ export default function AdminPanel({ isAdmin }: { isAdmin?: boolean }) {
   return (
     <div className="w-full p-4 md:p-8 relative">
       <ConfirmModal 
-        isOpen={!!deleteEmail}
+        isOpen={!!deleteData}
         title="Delete User"
-        message={`Are you sure you want to completely delete ${deleteEmail}? This action is irreversible and all their data will be destroyed.`}
+        message={`Are you sure you want to completely delete ${deleteData?.email}? This action is irreversible and all their data will be destroyed.`}
         onConfirm={handleDelete}
-        onCancel={() => setDeleteEmail(null)}
+        onCancel={() => setDeleteData(null)}
         confirmText="Destroy User"
+        x={deleteData?.x}
+        y={deleteData?.y}
       />
       {showCreateForm ? (
         <AdminUserForm onBack={() => setShowCreateForm(false)} onSaved={() => { setShowCreateForm(false); fetchUsers(); }} />
@@ -360,7 +402,7 @@ export default function AdminPanel({ isAdmin }: { isAdmin?: boolean }) {
                         <div className="flex items-center justify-end gap-3 transition-opacity">
                             <button onClick={() => setViewUser(u)} className="text-muted-foreground hover:text-primary transition-colors" title="View Profile"><Eye className="w-4 h-4" /></button>
                             <button onClick={() => handleEdit(u)} className="text-muted-foreground hover:text-primary transition-colors" title="Edit User"><Edit className="w-4 h-4" /></button>
-                            <button onClick={() => setDeleteEmail(u.email)} className="text-muted-foreground hover:text-red-500 transition-colors" title="Delete User (Terminates Data)"><Trash2 className="w-4 h-4" /></button>
+                            <button onClick={(e) => setDeleteData({ email: u.email, x: e.clientX, y: e.clientY })} className="text-muted-foreground hover:text-red-500 transition-colors" title="Delete User (Terminates Data)"><Trash2 className="w-4 h-4" /></button>
                         </div>
                       )}
                   </td>
@@ -529,22 +571,78 @@ export default function AdminPanel({ isAdmin }: { isAdmin?: boolean }) {
              </div>
              
              {/* System Announcer */}
-             <div className="bg-card/60 backdrop-blur-md border border-border rounded-2xl p-6 shadow-xl">
-                 <div className="flex items-center gap-3 mb-4">
+             <div className="bg-card/60 backdrop-blur-md border border-border rounded-2xl p-6 shadow-xl flex flex-col h-full">
+                 <div className="flex items-center gap-3 mb-4 shrink-0">
                     <div className="w-10 h-10 bg-amber-500/10 rounded-lg flex items-center justify-center text-amber-500">
                         <Megaphone className="w-5 h-5" />
                     </div>
                     <h2 className="text-xl font-display font-bold tracking-tight">System Announcer</h2>
                  </div>
-                 <textarea 
-                    value={broadcastMessage}
-                    onChange={(e) => setBroadcastMessage(e.target.value)}
-                    placeholder="Enter an emergency broadcast to display to all users..."
-                    className="w-full bg-background border border-border rounded-xl p-3 h-24 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all resize-none"
-                 />
-                 <button onClick={sendBroadcast} className="w-full mt-3 bg-amber-500 text-amber-950 font-bold uppercase tracking-widest text-xs py-3 rounded-lg hover:brightness-110 transition disabled:opacity-50" disabled={!broadcastMessage.trim()}>
-                    Dispatch Global Alert
-                 </button>
+                 
+                 <div className="flex flex-col gap-4 overflow-y-auto mb-4 max-h-[300px] pr-2">
+                    {announcements.map((ann) => (
+                       <div key={ann.id} className="bg-background border border-border rounded-xl p-4 shadow-sm relative group transition-all hover:border-amber-500/50">
+                          {editingAnnouncement && editingAnnouncement.id === ann.id ? (
+                            <div className="flex flex-col gap-2 relative z-10 text-foreground">
+                               <textarea
+                                  value={editingAnnouncement.message}
+                                  onChange={(e) => setEditingAnnouncement({...editingAnnouncement, message: e.target.value})}
+                                  className="w-full bg-card border border-amber-500/50 rounded-lg p-2 h-20 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none text-foreground"
+                               />
+                               <div className="flex gap-2 self-end">
+                                  <button 
+                                     onClick={() => setEditingAnnouncement(null)} 
+                                     className="flex items-center gap-1 text-xs font-bold text-muted-foreground hover:text-foreground px-2 py-1 rounded-md bg-muted/50 hover:bg-muted transition"
+                                  >
+                                     <X className="w-3 h-3" /> Cancel
+                                  </button>
+                                  <button 
+                                     onClick={() => updateAnnouncement(ann.id)}
+                                     className="flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-500 px-2 py-1 rounded-md bg-amber-500/10 hover:bg-amber-500/20 transition"
+                                  >
+                                     <Save className="w-3 h-3" /> Save
+                                  </button>
+                               </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="text-sm font-medium mb-1 text-foreground leading-snug break-words pr-8">
+                                 {ann.message}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                                 {new Date(ann.created_at).toLocaleString()}
+                              </div>
+                              
+                              <div className="absolute top-2 right-2 flex flex-col sm:flex-row items-center bg-card/80 backdrop-blur-sm border border-border rounded-lg shadow-sm overflow-hidden opacity-100 transition-opacity">
+                                 <button onClick={() => setEditingAnnouncement(ann)} className="p-1.5 sm:p-2 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition">
+                                    <Edit className="w-3.5 h-3.5" />
+                                 </button>
+                                 <button onClick={() => deleteAnnouncement(ann.id)} className="p-1.5 sm:p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition border-t sm:border-t-0 sm:border-l border-border">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                 </button>
+                              </div>
+                            </>
+                          )}
+                       </div>
+                    ))}
+                    {announcements.length === 0 && (
+                      <div className="text-center text-sm text-muted-foreground py-6 italic opacity-70">
+                        No active announcements.
+                      </div>
+                    )}
+                 </div>
+
+                 <div className="mt-auto shrink-0 border-t border-border pt-4">
+                     <textarea 
+                        value={broadcastMessage}
+                        onChange={(e) => setBroadcastMessage(e.target.value)}
+                        placeholder="Enter a new broadcast to display to all users..."
+                        className="w-full bg-background border border-border rounded-xl p-3 h-20 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all resize-none shadow-inner"
+                     />
+                     <button onClick={sendBroadcast} className="w-full mt-3 bg-gradient-to-r from-amber-500 to-amber-600 text-amber-950 font-bold uppercase tracking-widest text-[11px] py-2.5 rounded-lg hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 disabled:pointer-events-none shadow-sm" disabled={!broadcastMessage.trim()}>
+                        Dispatch Global Alert
+                     </button>
+                 </div>
              </div>
          </div>
       </div>

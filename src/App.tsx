@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Lead, Stage, MetricData, User } from './types';
 import Board from './components/Board';
 import Dashboard from './components/Dashboard';
-import { Moon, Sun, Plus, X, Database, Download, Trash2, Edit3, Shield, CheckCircle, Target, User as UserIcon, ArrowLeft } from 'lucide-react';
+import { Moon, Sun, Plus, X, Database, Download, Trash2, Edit3, Shield, CheckCircle, Target, User as UserIcon, ArrowLeft, Megaphone } from 'lucide-react';
 import LeadModal from './components/LeadModal';
 import Sidebar, { ViewType } from './components/Sidebar';
 import { AnimatePresence, motion } from 'motion/react';
@@ -28,7 +28,7 @@ const socket = io();
 
 export default function App() {
   const toast = useToast();
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'single' | 'bulk', id?: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'single' | 'bulk' | 'purge', id?: string, x?: number, y?: number } | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [monthlyTarget, setMonthlyTarget] = useState<number>(() => {
     const saved = localStorage.getItem('monthlyTarget');
@@ -149,11 +149,24 @@ export default function App() {
   const [pendingTier, setPendingTier] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [globalSettings, setGlobalSettings] = useState<any>({ maintenanceMode: false, registrationOpen: true });
+  const [latestAnnouncement, setLatestAnnouncement] = useState<any>(null);
+  const [dismissedAnnouncementId, setDismissedAnnouncementId] = useState<number | null>(null);
 
   useEffect(() => {
     fetch('/api/settings')
       .then(res => res.json())
       .then(data => setGlobalSettings(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/admin/announcements')
+      .then(res => res.json())
+      .then(data => {
+         if (data.announcements && data.announcements.length > 0) {
+            setLatestAnnouncement(data.announcements[0]);
+         }
+      })
       .catch(() => {});
   }, []);
 
@@ -259,8 +272,16 @@ export default function App() {
         return [...prev, newLead];
       });
     });
-    socket.on('admin_broadcast', (message: string) => {
+    socket.on('admin_broadcast', (data: any) => {
+      const message = typeof data === 'string' ? data : data.message;
       toast(`SYSTEM BROADCAST: ${message}`);
+      setLatestAnnouncement(typeof data === 'string' ? { message } : data);
+    });
+    socket.on('admin_broadcast_update', (data: any) => {
+      setLatestAnnouncement((prev: any) => (prev && prev.id === data.id) ? data : prev);
+    });
+    socket.on('admin_broadcast_delete', (id: number) => {
+      setLatestAnnouncement((prev: any) => (prev && prev.id === id) ? null : prev);
     });
     socket.on('settings_update', (settings: any) => {
       if (settings && settings.maintenanceMode) {
@@ -273,6 +294,8 @@ export default function App() {
       socket.off('lead_deleted');
       socket.off('lead_created');
       socket.off('admin_broadcast');
+      socket.off('admin_broadcast_update');
+      socket.off('admin_broadcast_delete');
       socket.off('settings_update');
     };
   }, []);
@@ -293,6 +316,7 @@ export default function App() {
     setUserEmail(null);
     setCurrentUser(null);
     setTier(null);
+    toast('Logged out successfully');
   };
 
   const checkAuthStatus = async (user2FAEnabled?: boolean) => {
@@ -395,23 +419,26 @@ export default function App() {
         });
         // Auto-open modal for the new lead
         setSelectedLead({ ...newLead, id: data.id });
+        toast('Lead created successfully');
       } else if (data.offline) {
         setLeads(prev => [...prev, { ...newLead, id: tempId }]);
         setSelectedLead({ ...newLead, id: tempId });
+        toast('Lead created offline');
       }
     } catch (e) {
       console.error('Failed to create lead', e);
       setLeads(prev => [...prev, { ...newLead, id: tempId }]);
       setSelectedLead({ ...newLead, id: tempId });
+      toast('Lead created offline');
     }
   };
 
-  const triggerDeleteLead = (leadId: string) => {
-    setDeleteConfirm({ type: 'single', id: leadId });
+  const triggerDeleteLead = (leadId: string, e?: React.MouseEvent) => {
+    setDeleteConfirm({ type: 'single', id: leadId, x: e?.clientX, y: e?.clientY });
   };
 
-  const triggerBulkDelete = () => {
-    setDeleteConfirm({ type: 'bulk' });
+  const triggerBulkDelete = (e?: React.MouseEvent) => {
+    setDeleteConfirm({ type: 'bulk', x: e?.clientX, y: e?.clientY });
   };
 
   const executeDelete = async () => {
@@ -423,8 +450,10 @@ export default function App() {
       setSelectedLead(null);
       try {
         await apiFetch(`/api/leads/${leadId}`, { method: 'DELETE' });
+        toast('Lead deleted successfully');
       } catch (e) {
         console.error('Failed to delete lead', e);
+        toast('Failed to delete lead');
       }
     } else if (deleteConfirm.type === 'bulk') {
       setLeads(prev => prev.filter(l => !selectedLeadIds.includes(l.id)));
@@ -437,6 +466,9 @@ export default function App() {
         } catch (e) {}
       }
       toast('Bulk deletion completed successfully');
+    } else if (deleteConfirm.type === 'purge') {
+      setLeads([]);
+      toast('Vault Data Purged Successfully');
     }
     
     setDeleteConfirm(null);
@@ -461,6 +493,7 @@ export default function App() {
   const onDragEnd = async (leadId: string, newStage: Stage) => {
     const updated = leads.map(l => l.id === leadId ? { ...l, stage: newStage } : l);
     setLeads(updated);
+    toast(`Lead moved to ${newStage}`);
     
     // Optimistic update, but we should tell the backend
     try {
@@ -483,8 +516,10 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
+      toast('Lead updated successfully');
     } catch (e) {
       console.error('Failed to update lead data', e);
+      toast('Failed to update lead');
     }
   };
 
@@ -513,7 +548,7 @@ export default function App() {
         // Allow Admins to still login if they know the route or via the standard screen. Actually we shouldn't block the standard login entirely, just let them see it but add a maintenance banner? Let's just pass globalSettings.maintenanceMode into LandingPage to show a banner.
     }
     if (userEmail && is2FAEnabled) {
-      return <Login2FA onSuccess={() => { setIsAuthenticated(true); setCurrentView('pipeline'); setViewHistory([]); }} onBack={() => { setUserEmail(''); setIs2FAEnabled(false); localStorage.removeItem('loginRequires2FA'); }} />;
+      return <Login2FA onSuccess={() => { setIsAuthenticated(true); setCurrentView('pipeline'); setViewHistory([]); toast('Logged in successfully'); }} onBack={() => { setUserEmail(''); setIs2FAEnabled(false); localStorage.removeItem('loginRequires2FA'); }} />;
     }
     return <LandingPage globalSettings={globalSettings} onSignInSuccess={(email, tier, require2FA) => {
       setUserEmail(email);
@@ -526,6 +561,7 @@ export default function App() {
         setIsAuthenticated(true);
         setCurrentView('pipeline');
         setViewHistory([]);
+        toast('Logged in successfully');
       }
     }} />;
   }
@@ -568,6 +604,31 @@ export default function App() {
       <Sidebar currentView={currentView} onViewChange={handleViewChange} isAdmin={currentUser?.isAdmin} />
       <BottomNav currentView={currentView} onViewChange={handleViewChange} isAdmin={currentUser?.isAdmin} />
       <div className="flex-1 flex flex-col min-w-0 bg-gradient-to-br from-background via-accent/20 to-background dark:via-background dark:to-card/50">
+        <AnimatePresence>
+          {latestAnnouncement && dismissedAnnouncementId !== latestAnnouncement.id && (
+             <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-3 flex items-start sm:items-center justify-between gap-4 shrink-0 overflow-hidden text-amber-600 dark:text-amber-400 z-20"
+             >
+                <div className="flex flex-1 items-start sm:items-center gap-3">
+                   <div className="bg-amber-500/20 p-1.5 rounded-full shrink-0">
+                      <Megaphone className="w-4 h-4" />
+                   </div>
+                   <div className="text-sm font-medium leading-snug">
+                     {latestAnnouncement.message}
+                   </div>
+                </div>
+                <button 
+                  onClick={() => setDismissedAnnouncementId(latestAnnouncement.id)}
+                  className="shrink-0 p-1 rounded-full hover:bg-amber-500/20 transition-colors"
+                >
+                   <X className="w-4 h-4" />
+                </button>
+             </motion.div>
+          )}
+        </AnimatePresence>
         <header className="border-b border-border bg-background/80 backdrop-blur-xl px-4 md:px-8 py-4 flex items-center justify-between h-20 shrink-0 z-10 transition-all duration-300">
           <div className="flex items-center gap-3">
             {currentView !== 'pipeline' && (
@@ -844,9 +905,9 @@ export default function App() {
                             </td>
                             <td className="px-6 py-4 text-muted-foreground">{lead.nextFollowUp}</td>
                             <td className="px-6 py-4 text-right">
-                              <div className="flex justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                              <div className="flex justify-end gap-2 opacity-100 transition-opacity">
                                 <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted hover:text-primary transition-colors hover:bg-primary/10 rounded-md border border-border sm:border-transparent sm:bg-transparent" onClick={(e) => { e.stopPropagation(); setSelectedLead(lead); }}><Edit3 className="w-3.5 h-3.5" /> <span className="sm:hidden">Edit</span></button>
-                                <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-red-500 hover:text-white transition-colors bg-red-500/10 hover:bg-red-600 rounded-md border border-red-500/20" onClick={(e) => { e.stopPropagation(); triggerDeleteLead(lead.id); }}><Trash2 className="w-3.5 h-3.5" /> <span className="sm:hidden">Delete</span></button>
+                                <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-red-500 hover:text-white transition-colors bg-red-500/10 hover:bg-red-600 rounded-md border border-red-500/20" onClick={(e) => { e.stopPropagation(); triggerDeleteLead(lead.id, e); }}><Trash2 className="w-3.5 h-3.5" /> <span className="sm:hidden">Delete</span></button>
                               </div>
                             </td>
                           </tr>
@@ -939,7 +1000,7 @@ export default function App() {
                         <h3 className="text-sm md:text-base font-bold text-red-500">Purge Vault Data</h3>
                         <p className="text-xs md:text-sm text-red-500/70 mt-1.5 max-w-sm">Permanently wipe all local cache, diagnostic mapping, and pipeline flow. This cannot be undone.</p>
                       </div>
-                      <button type="button" className="relative z-10 w-full sm:w-auto px-6 py-2.5 bg-red-500/10 border border-red-500/20 text-red-500 font-bold text-xs rounded-lg uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all shadow-sm shrink-0">Execute Purge</button>
+                      <button type="button" onClick={(e) => setDeleteConfirm({ type: 'purge', x: e.clientX, y: e.clientY })} className="relative z-10 w-full sm:w-auto px-6 py-2.5 bg-red-500/10 border border-red-500/20 text-red-500 font-bold text-xs rounded-lg uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all shadow-sm shrink-0">Execute Purge</button>
                     </motion.div>
                   </div>
                 </div>
@@ -1066,23 +1127,25 @@ export default function App() {
         {showSetup2FA && (
           <Setup2FAModal 
             onClose={() => setShowSetup2FA(false)} 
-            onSuccess={() => { setShowSetup2FA(false); setIs2FAEnabled(true); }}
+            onSuccess={() => { setShowSetup2FA(false); setIs2FAEnabled(true); toast('2FA Enabled Successfully'); }}
           />
         )}
         {showDisable2FA && (
           <Disable2FAModal 
             onClose={() => setShowDisable2FA(false)} 
-            onSuccess={() => { setShowDisable2FA(false); setIs2FAEnabled(false); }}
+            onSuccess={() => { setShowDisable2FA(false); setIs2FAEnabled(false); toast('2FA Disabled Successfully'); }}
           />
         )}
       </AnimatePresence>
 
       <ConfirmModal 
         isOpen={deleteConfirm !== null}
-        title={deleteConfirm?.type === 'bulk' ? 'Delete Multiple Leads' : 'Delete Lead'}
-        message={deleteConfirm?.type === 'bulk' ? `Are you sure you want to permanently delete ${selectedLeadIds.length} leads? This action cannot be undone.` : 'Are you sure you want to permanently delete this lead? This action cannot be undone.'}
+        title={deleteConfirm?.type === 'purge' ? 'Purge Vault Data' : deleteConfirm?.type === 'bulk' ? 'Delete Multiple Leads' : 'Delete Lead'}
+        message={deleteConfirm?.type === 'purge' ? 'Are you sure you want to permanently wipe all local cache, diagnostic mapping, and pipeline flow? This action cannot be undone.' : deleteConfirm?.type === 'bulk' ? `Are you sure you want to permanently delete ${selectedLeadIds.length} leads? This action cannot be undone.` : 'Are you sure you want to permanently delete this lead? This action cannot be undone.'}
         onConfirm={executeDelete}
         onCancel={() => setDeleteConfirm(null)}
+        x={deleteConfirm?.x}
+        y={deleteConfirm?.y}
       />
     </div>
   );

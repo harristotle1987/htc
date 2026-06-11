@@ -316,6 +316,15 @@ export async function initDb() {
       )
     `;
     
+    // 10. Announcements
+    await sql`
+      CREATE TABLE IF NOT EXISTS announcements (
+        id SERIAL PRIMARY KEY,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    
     const existingPrices = await sql`SELECT count(*) FROM tier_prices`;
     const priceCount = (existingPrices && existingPrices.length > 0 && existingPrices[0].count) ? parseInt(existingPrices[0].count) : 0;
     if (priceCount === 0) {
