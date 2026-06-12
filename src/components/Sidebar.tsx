@@ -12,11 +12,15 @@ interface SidebarProps {
 
 export default function Sidebar({ currentView, onViewChange, isAdmin }: SidebarProps) {
   const scrollToTop = () => {
+    // Try scrolling to top of page/main container
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     const main = document.querySelector('main');
     if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const scrollToBottom = () => {
+    // Try scrolling to bottom of page/main container
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     const main = document.querySelector('main');
     if (main) main.scrollTo({ top: main.scrollHeight, behavior: 'smooth' });
   };

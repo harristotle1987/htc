@@ -31,20 +31,25 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2 pointer-events-none items-center">
-        <AnimatePresence>
-          {toasts.map((t) => (
-            <motion.div 
-              key={t.id}
-              initial={{ opacity: 0, y: -20, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.9 }}
-              className="bg-primary text-primary-foreground px-5 py-3 rounded-full shadow-2xl font-bold text-sm pointer-events-auto flex items-center justify-center whitespace-nowrap"
-            >
-              {t.message}
-            </motion.div>
-          ))}
-        </AnimatePresence>
+      <div 
+        className="fixed top-0 left-0 right-0 z-[9999] pointer-events-none flex justify-center pt-6 overflow-hidden"
+        onClick={() => setToasts([])}
+      >
+        <div className="pointer-events-auto flex flex-col gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+          <AnimatePresence>
+            {toasts.map((t) => (
+              <motion.div 
+                key={t.id}
+                initial={{ opacity: 0, y: -20, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.9 }}
+                className="bg-primary text-primary-foreground px-4 py-2 rounded-full shadow-lg font-bold text-xs flex items-center justify-center whitespace-nowrap border border-primary-foreground/10"
+              >
+                {t.message}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
       </div>
     </>
   );
