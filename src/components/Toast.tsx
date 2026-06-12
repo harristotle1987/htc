@@ -18,13 +18,19 @@ export function useToast() {
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastData[]>([]);
+  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   addToast = (message: string) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
     const id = Date.now() + Math.random();
     const newToast = { id, message };
-    setToasts(prev => [...prev, newToast]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+    setToasts([newToast]);
+    
+    timeoutRef.current = setTimeout(() => {
+      setToasts([]);
     }, 2500);
   };
 
