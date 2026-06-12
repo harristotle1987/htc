@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { MetricData, Lead } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { apiFetch } from '../lib/api';
 import AnalyticsChart from './AnalyticsChart';
 import RevenueGauge from './RevenueGauge';
 import { Activity, Target } from 'lucide-react';
-import { apiFetch } from '../lib/api';
 
 interface DashboardProps {
   metrics: MetricData | null;
@@ -24,8 +24,13 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
   useEffect(() => {
     const fetchRate = async () => {
       try {
+        console.log(`Fetching rate from backend: USD to ${currency}`);
         const res = await apiFetch(`/api/exchange-rate?from=USD&to=${currency}`);
+        if (!res.ok) {
+           throw new Error(`Server responded with ${res.status}`);
+        }
         const data = await res.json();
+        console.log("Exchange rate data:", data);
         if (data && data.rate) {
           setExchangeRate(data.rate);
         }

@@ -456,6 +456,16 @@ export default function AdminPanel({ isAdmin }: { isAdmin?: boolean }) {
                 </div>
                 <p className="text-xs text-muted-foreground mt-2 relative z-10">Payment processing connection</p>
              </div>
+             
+             <div className="bg-background/50 border border-border p-4 rounded-xl flex flex-col gap-2 relative overflow-hidden">
+                <div className={`absolute top-0 right-0 w-32 h-32 ${systemHealth.exchangeRateApi === 'Connected' ? 'bg-emerald-500/10' : 'bg-amber-500/10'} blur-[40px] rounded-full pointer-events-none`}></div>
+                <h4 className="text-xs uppercase text-muted-foreground font-bold tracking-wider relative z-10">Exchange Rate API</h4>
+                <div className="flex items-center gap-2 relative z-10">
+                   <div className={`w-2 h-2 rounded-full ${systemHealth.exchangeRateApi === 'Connected' ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+                   <span className="font-semibold text-lg">{systemHealth.exchangeRateApi || 'Unknown'}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2 relative z-10">Currency conversion data</p>
+             </div>
           </div>
         </div>
       )}

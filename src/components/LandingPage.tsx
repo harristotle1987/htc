@@ -6,6 +6,8 @@ import PrivacyPolicy from './PrivacyPolicy';
 import TermsOfService from './TermsOfService';
 import PricingMatrix from './PricingMatrix';
 
+import { DataProcessingPage, ApiAccessPage, SecurityProtocolPage, SystemStatusPage } from './InfoPages';
+
 interface LandingPageProps {
   onSignInSuccess: (email: string, pendingTier?: string | null, require2FA?: boolean) => void;
   globalSettings?: any;
@@ -347,6 +349,14 @@ export default function LandingPage({ onSignInSuccess, globalSettings }: Landing
         <div className="pt-24 pb-24 min-h-[80vh]">
            <TermsOfService onBack={() => setGuestView('home')} />
         </div>
+      ) : guestView === 'data' ? (
+        <DataProcessingPage onBack={() => setGuestView('home')} />
+      ) : guestView === 'api' ? (
+        <ApiAccessPage onBack={() => setGuestView('home')} />
+      ) : guestView === 'security' ? (
+        <SecurityProtocolPage onBack={() => setGuestView('home')} />
+      ) : guestView === 'status' ? (
+        <SystemStatusPage onBack={() => setGuestView('home')} />
       ) : (
         <GenericPage title={guestView} onBack={() => setGuestView('home')} />
       )}
@@ -366,7 +376,7 @@ export default function LandingPage({ onSignInSuccess, globalSettings }: Landing
           <div>
             <h3 className="font-bold text-zinc-100 mb-6 text-sm uppercase tracking-widest font-mono">Platform</h3>
             <ul className="space-y-4 text-sm">
-              <li><button onClick={() => setGuestView('features')} className="hover:text-primary transition-colors cursor-pointer">Features</button></li>
+              <li><button onClick={() => { setGuestView('home'); setTimeout(() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }), 100); }} className="hover:text-primary transition-colors cursor-pointer">Features</button></li>
               <li><button onClick={() => setGuestView('pricing')} className="hover:text-primary transition-colors cursor-pointer">Pricing Matrix</button></li>
               <li><button onClick={() => setGuestView('security')} className="hover:text-primary transition-colors cursor-pointer">Security Protocol</button></li>
               <li><button onClick={() => setGuestView('api')} className="hover:text-primary transition-colors cursor-pointer">API Access</button></li>

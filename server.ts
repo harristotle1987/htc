@@ -735,12 +735,16 @@ app.get('/api/exchange-rate', async (req, res) => {
       const url = `https://v6.exchangerate-api.com/v6/${apiKey}/pair/${from}/${to}`;
       console.log(`Calling configured API: ${url}`);
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
+      console.log(`API response received:`, data);
       if (data.result === 'success') {
         res.json({ rate: data.conversion_rate });
         return;
       }
-      console.warn(`Configured API failed:`, data);
+      console.warn(`Configured API returned unsuccessful data:`, data);
     } catch (e) {
       console.error(`Configured API error:`, e);
     }
@@ -752,6 +756,9 @@ app.get('/api/exchange-rate', async (req, res) => {
   try {
     console.log(`Calling public fallback API for ${from}`);
     const resFallback = await fetch(`https://api.exchangerate-api.com/v4/latest/${from}`);
+    if (!resFallback.ok) {
+        throw new Error(`Public API HTTP error! status: ${resFallback.status}`);
+    }
     const dataFallback = await resFallback.json();
     if (dataFallback && dataFallback.rates && dataFallback.rates[to]) {
       res.json({ rate: dataFallback.rates[to] });
@@ -795,10 +802,27 @@ app.post('/api/admin/prices', async (req, res) => {
 app.get('/api/admin/system/health', async (req, res) => {
   try {
     const isDbConnected = !!(await sql`SELECT 1`);
+    
+    let exchangeRateApiStatus = 'No Connection';
+    if (process.env.EXCHANGE_RATE_API_KEY) {
+      try {
+        const url = `https://v6.exchangerate-api.com/v6/${process.env.EXCHANGE_RATE_API_KEY}/latest/USD`;
+        const testRes = await fetch(url);
+        if (testRes.ok) {
+          exchangeRateApiStatus = 'Connected';
+        } else {
+          exchangeRateApiStatus = `Error: ${testRes.status}`;
+        }
+      } catch (e) {
+        exchangeRateApiStatus = 'Failed to connect';
+      }
+    }
+
     const status = {
       database: isDbConnected ? 'Connected' : 'No Connection',
       monnifyGateway: process.env.MONNIFY_SECRET_KEY ? 'Connected' : 'No Connection',
       monnifyContractCode: process.env.MONNIFY_CONTRACT_CODE ? 'Connected' : 'No Connection',
+      exchangeRateApi: exchangeRateApiStatus,
       environment: process.env.NODE_ENV || 'development'
     };
     res.json(status);
@@ -806,6 +830,7 @@ app.get('/api/admin/system/health', async (req, res) => {
     res.status(500).json({ 
       database: 'No Connection', 
       monnifyGateway: 'Unknown', 
+      exchangeRateApi: 'Unknown',
       error: (err as any).message 
     });
   }
