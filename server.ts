@@ -723,6 +723,29 @@ app.get('/api/config/monnify', (req, res) => {
   });
 });
 
+// GET /api/exchange-rate
+app.get('/api/exchange-rate', async (req, res) => {
+  const { from = 'USD', to = 'NGN' } = req.query as { from?: string; to?: string };
+  try {
+    const apiKey = process.env.EXCHANGE_RATE_API_KEY;
+    if (!apiKey) {
+        // Fallback for demo/dev if key is not set
+        res.json({ rate: 1400 });
+        return;
+    }
+    const response = await fetch(`https://v6.exchangerate-api.com/v6/${apiKey}/pair/${from}/${to}`);
+    const data = await response.json();
+    if (data.result === 'success') {
+      res.json({ rate: data.conversion_rate });
+    } else {
+      res.json({ rate: 1400, error: 'Failed to fetch rate, using fallback' });
+    }
+  } catch (error) {
+    console.error('Error fetching exchange rate:', error);
+    res.json({ rate: 1400, error: 'Error fetching rate, using fallback' });
+  }
+});
+
 
 // POST /api/admin/prices
 app.post('/api/admin/prices', async (req, res) => {

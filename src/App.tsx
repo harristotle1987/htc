@@ -148,9 +148,14 @@ export default function App() {
   const [userEmail, setUserEmail] = useState<string | null>(() => localStorage.getItem('userEmail'));
   const [pendingTier, setPendingTier] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currency, setCurrency] = useState<'USD' | 'NGN'>(() => (localStorage.getItem('userCurrency') as 'USD' | 'NGN') || 'USD');
   const [globalSettings, setGlobalSettings] = useState<any>({ maintenanceMode: false, registrationOpen: true });
   const [latestAnnouncement, setLatestAnnouncement] = useState<any>(null);
   const [dismissedAnnouncementId, setDismissedAnnouncementId] = useState<number | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('userCurrency', currency);
+  }, [currency]);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -701,7 +706,7 @@ export default function App() {
                 <div className="flex-[1] flex flex-col min-w-0 w-full">
                   {/* Banner removed */}
                   
-                  <Dashboard metrics={metrics} leads={leads} loading={loading} tier={tier} isAdmin={currentUser?.isAdmin} monthlyTarget={monthlyTarget} />
+                  <Dashboard metrics={metrics} leads={leads} loading={loading} tier={tier} isAdmin={currentUser?.isAdmin} monthlyTarget={monthlyTarget} currency={currency} setCurrency={setCurrency} />
 
                   <div className="flex justify-between items-center mb-4 px-2">
                     <h2 className="text-xl font-bold">Pipeline</h2>

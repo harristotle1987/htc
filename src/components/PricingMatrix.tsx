@@ -85,12 +85,24 @@ export default function PricingMatrix({ userEmail, pendingTier, isExpired, onCom
       await loadMonnifyScript(configuredApiKey);
       if (!window.MonnifySDK) throw new Error("Monnify not initialized");
 
+      // Fetch dynamic exchange rate from backend
+      let exchangeRate = 1400; // Default fallback
+      try {
+        const rateRes = await apiFetch('/api/exchange-rate');
+        const rateData = await rateRes.json();
+        if (rateData && rateData.rate) {
+          exchangeRate = rateData.rate;
+        }
+      } catch (e) {
+        console.error("Failed to fetch exchange rate from backend, using fallback", e);
+      }
+
       const monnifyConfig = {
         apiKey: configuredApiKey,
         contractCode: monnifyKeys.contractCode || '6732385923',
         isTestMode: configuredApiKey.startsWith('MK_TEST'),
         currency: "NGN",
-        amount: Math.round(priceInput * 1000), // Adjusting amount
+        amount: Math.round(priceInput * exchangeRate),
         reference: 'aegis_' + Date.now().toString(),
         customerFullName: 'Aegis Client',
         customerEmail: userEmail,

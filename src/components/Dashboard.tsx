@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import AnalyticsChart from './AnalyticsChart';
 import RevenueGauge from './RevenueGauge';
 import { Activity, Target } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 
 interface DashboardProps {
   metrics: MetricData | null;
@@ -12,11 +13,33 @@ interface DashboardProps {
   tier?: string | null;
   monthlyTarget?: number;
   isAdmin?: boolean;
+  currency: 'USD' | 'NGN';
+  setCurrency: React.Dispatch<React.SetStateAction<'USD' | 'NGN'>>;
 }
 
-export default function Dashboard({ metrics, leads = [], loading = false, tier = 'free', monthlyTarget = 50000, isAdmin = false }: DashboardProps) {
+export default function Dashboard({ metrics, leads = [], loading = false, tier = 'free', monthlyTarget = 50000, isAdmin = false, currency, setCurrency }: DashboardProps) {
   const isBlur = tier === 'free' && !isAdmin;
   const [cardOrder, setCardOrder] = useState<string[]>(['ads', 'cc']);
+  const [exchangeRate, setExchangeRate] = useState<number>(1400); // Default fallback
+  useEffect(() => {
+    const fetchRate = async () => {
+      try {
+        const res = await apiFetch(`/api/exchange-rate?from=USD&to=${currency}`);
+        const data = await res.json();
+        if (data && data.rate) {
+          setExchangeRate(data.rate);
+        }
+      } catch (e) {
+        console.error("Failed to fetch exchange rate from backend, using fallback", e);
+      }
+    };
+    
+    if (currency === 'USD') {
+      setExchangeRate(1); 
+    } else {
+      fetchRate();
+    }
+  }, [currency]);
 
   useEffect(() => {
     const savedOrder = localStorage.getItem('dashboardCardOrder');
@@ -32,11 +55,16 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
     }
   }, []);
 
+  const formatCurrency = (value: number) => {
+    if (currency === 'USD') {
+      return '$' + value.toLocaleString();
+    }
+    return '₦' + Math.round(value * exchangeRate).toLocaleString();
+  };
+
   // Compute metrics dynamically from leads
-  let computedAverageDealSize = metrics?.averageDealSize || '$0';
-  let computedCashCollected = metrics?.cashCollected || '$0';
-  let showToClose = metrics?.showToCloseRate || '0%';
-  let talkToListen = metrics?.talkToListenRatio || '0%';
+  let rawAverageDealSize = 0;
+  let rawCashCollected = 0;
   
   if (leads.length > 0) {
     // Average Deal Size: Focus on Won deals first, fallback to active pipeline
@@ -45,19 +73,29 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
     
     if (wonLeads.length > 0) {
       const sum = wonLeads.reduce((acc, curr) => acc + (curr.dealSize || 0), 0);
-      const avg = Math.round(sum / wonLeads.length);
-      computedAverageDealSize = '$' + avg.toLocaleString();
+      rawAverageDealSize = Math.round(sum / wonLeads.length);
     } else if (activeLeads.length > 0) {
       const sum = activeLeads.reduce((acc, curr) => acc + (curr.dealSize || 0), 0);
-      const avg = Math.round(sum / activeLeads.length);
-      computedAverageDealSize = '$' + avg.toLocaleString();
+      rawAverageDealSize = Math.round(sum / activeLeads.length);
     }
     
     // Cash Collected (Revenue based on closer percentage)
     const paidLeads = leads.filter(l => l.stage === 'Closed-Won' && l.paymentConfirmed);
-    const cash = paidLeads.reduce((acc, curr) => acc + ((curr.amountPaid || 0) * ((curr.closerPercentage || 0) / 100)), 0);
-    computedCashCollected = '$' + cash.toLocaleString();
+    rawCashCollected = paidLeads.reduce((acc, curr) => acc + ((curr.amountPaid || 0) * ((curr.closerPercentage || 0) / 100)), 0);
+  } else {
+    // Fallback to metrics if no leads
+    const parseValue = (s: string) => parseInt(s.replace(/[^0-9]/g, ''), 10) || 0;
+    rawAverageDealSize = parseValue(metrics?.averageDealSize || '$0');
+    rawCashCollected = parseValue(metrics?.cashCollected || '$0');
+  }
 
+  let computedAverageDealSize = formatCurrency(rawAverageDealSize);
+  let computedCashCollected = formatCurrency(rawCashCollected);
+  let showToClose = metrics?.showToCloseRate || '0%';
+  let talkToListen = metrics?.talkToListenRatio || '0%';
+  
+  if (leads.length > 0) {
+    const wonLeads = leads.filter(l => l.stage === 'Closed-Won');
     // Show-to-Close Rate
     const shows = leads.filter(l => !['Discovery Scheduled', 'Nurture / Long-Term'].includes(l.stage)).length;
     const closes = wonLeads.length;
@@ -119,6 +157,14 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
 
   return (
     <div className="w-full shrink-0 z-10 flex flex-col">
+      <div className="flex justify-end px-4 md:px-6 pt-2">
+         <button 
+           onClick={() => setCurrency(currency === 'USD' ? 'NGN' : 'USD')}
+           className="text-xs font-bold text-muted-foreground hover:text-foreground bg-secondary px-2 py-1 rounded"
+         >
+           {currency === 'USD' ? 'Switch to NGN' : 'Switch to USD'}
+         </button>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-4 px-4 md:px-6 py-4 w-full border-b bg-background border-border transition-colors duration-300">
         <AnimatePresence mode="popLayout">
           {cardOrder.map((id) => {
@@ -157,7 +203,7 @@ export default function Dashboard({ metrics, leads = [], loading = false, tier =
         <div className="lg:col-span-2">
           {tier !== 'syndicate' && !isAdmin ? (
             <div className="w-full h-[300px] bg-card/60 backdrop-blur-md rounded-2xl border border-border flex items-center justify-center flex-col relative overflow-hidden group">
-              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
+              <div className="absolute inset-0 bg-transparent opacity-[0.03]"></div>
               <Activity className="w-12 h-12 text-muted-foreground/30 mb-4" />
               <h3 className="text-xl font-bold text-foreground">Executive Analytics Locked</h3>
               <p className="text-muted-foreground text-sm mt-2 max-w-sm text-center">Upgrade to Syndicate architectural authorization to access comprehensive velocity tracking.</p>
