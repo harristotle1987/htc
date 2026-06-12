@@ -331,6 +331,7 @@ app.post('/api/leads', async (req, res) => {
   const { name, company, dealSize, stage, callType, bleedingNeck, emotionalAnchor, coi, futureIdentity, budgetAnchor, nextFollowUp, notes, tasks, closerId, closerPercentage, amountPaid, paymentConfirmed, talkToListenRatio, bookingDate, priority } = req.body;
 
   try {
+    console.log('Incoming lead body:', req.body);
     await sql`
       INSERT INTO leads (
         id, user_email, name, company, deal_size, stage, call_type, bleeding_neck, 

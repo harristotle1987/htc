@@ -57,7 +57,7 @@ export default function LeadModal({ lead, onClose, onUpdate, onDelete, isReadOnl
   };
 
   useEffect(() => {
-    if (formData.notes === lead.notes) {
+    if ((formData.notes || '') === (lead.notes || '')) {
       setSaveStatus('idle');
       return;
     }

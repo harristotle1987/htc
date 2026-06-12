@@ -1097,6 +1097,30 @@ export default function App() {
               <p className="text-[10px] text-muted font-bold uppercase tracking-widest">© 2026 Aegis Vault CRM. All rights reserved.</p>
               <div className="flex items-center gap-6">
                 <button 
+                  onClick={() => handleViewChange('data')}
+                  className="text-[10px] text-muted hover:text-primary transition-colors font-bold uppercase tracking-widest"
+                >
+                  Data Processing
+                </button>
+                <button 
+                  onClick={() => handleViewChange('api')}
+                  className="text-[10px] text-muted hover:text-primary transition-colors font-bold uppercase tracking-widest"
+                >
+                  API Access
+                </button>
+                <button 
+                  onClick={() => handleViewChange('security')}
+                  className="text-[10px] text-muted hover:text-primary transition-colors font-bold uppercase tracking-widest"
+                >
+                  Security Protocol
+                </button>
+                <button 
+                  onClick={() => handleViewChange('status')}
+                  className="text-[10px] text-muted hover:text-primary transition-colors font-bold uppercase tracking-widest"
+                >
+                  System Status
+                </button>
+                <button 
                   onClick={() => handleViewChange('privacy')}
                   className="text-[10px] text-muted hover:text-primary transition-colors font-bold uppercase tracking-widest"
                 >
