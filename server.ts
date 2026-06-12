@@ -726,24 +726,44 @@ app.get('/api/config/monnify', (req, res) => {
 // GET /api/exchange-rate
 app.get('/api/exchange-rate', async (req, res) => {
   const { from = 'USD', to = 'NGN' } = req.query as { from?: string; to?: string };
-  try {
-    const apiKey = process.env.EXCHANGE_RATE_API_KEY;
-    if (!apiKey) {
-        // Fallback for demo/dev if key is not set
-        res.json({ rate: 1400 });
+  console.log(`Fetching exchange rate: ${from} to ${to}`);
+  
+  // Try configured API first
+  const apiKey = process.env.EXCHANGE_RATE_API_KEY;
+  if (apiKey) {
+    try {
+      const url = `https://v6.exchangerate-api.com/v6/${apiKey}/pair/${from}/${to}`;
+      console.log(`Calling configured API: ${url}`);
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.result === 'success') {
+        res.json({ rate: data.conversion_rate });
         return;
+      }
+      console.warn(`Configured API failed:`, data);
+    } catch (e) {
+      console.error(`Configured API error:`, e);
     }
-    const response = await fetch(`https://v6.exchangerate-api.com/v6/${apiKey}/pair/${from}/${to}`);
-    const data = await response.json();
-    if (data.result === 'success') {
-      res.json({ rate: data.conversion_rate });
-    } else {
-      res.json({ rate: 1400, error: 'Failed to fetch rate, using fallback' });
-    }
-  } catch (error) {
-    console.error('Error fetching exchange rate:', error);
-    res.json({ rate: 1400, error: 'Error fetching rate, using fallback' });
+  } else {
+    console.warn('EXCHANGE_RATE_API_KEY not set');
   }
+
+  // Fallback to public API
+  try {
+    console.log(`Calling public fallback API for ${from}`);
+    const resFallback = await fetch(`https://api.exchangerate-api.com/v4/latest/${from}`);
+    const dataFallback = await resFallback.json();
+    if (dataFallback && dataFallback.rates && dataFallback.rates[to]) {
+      res.json({ rate: dataFallback.rates[to] });
+      return;
+    }
+  } catch (e) {
+    console.error(`Fallback API error:`, e);
+  }
+
+  // Hard fallback
+  console.warn('All API attempts failed, using 1400 fallback');
+  res.json({ rate: 1400 });
 });
 
 
